@@ -1,0 +1,18 @@
+// Add this import at the top of App.tsx
+import LoginPage from './LoginPage';
+
+// Then replace the login/signup return section with:
+if (!user) {
+  return (
+    <LoginPage
+      email={email}
+      setEmail={setEmail}
+      password={password}
+      setPassword={setPassword}
+      isLogin={isLogin}
+      setIsLogin={setIsLogin}
+      handleAuth={handleAuth}
+      authMessage={authMessage}
+    />
+  )
+}

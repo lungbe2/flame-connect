@@ -1,0 +1,1043 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from './lib/supabase'
+
+function App() {
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [step, setStep] = useState(0)
+  const [goal, setGoal] = useState('')
+  const [lookingForGender, setLookingForGender] = useState('')
+  const [lookingForAgeMin, setLookingForAgeMin] = useState(18)
+  const [lookingForAgeMax, setLookingForAgeMax] = useState(60)
+  const [lookingForRelationship, setLookingForRelationship] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [age, setAge] = useState('')
+  const [gender, setGender] = useState('')
+  const [bio, setBio] = useState('')
+  const [location, setLocation] = useState('')
+  const [photos, setPhotos] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [interests, setInterests] = useState([])
+  const [wishlist, setWishlist] = useState([])
+  const [drink, setDrink] = useState('')
+  const [bodyType, setBodyType] = useState('')
+  const [eyes, setEyes] = useState('')
+  const [hair, setHair] = useState('')
+  const [message, setMessage] = useState('')
+  const [showFullBio, setShowFullBio] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [detectingLocation, setDetectingLocation] = useState(false)
+  const [locationSource, setLocationSource] = useState('')
+  const [activeTab, setActiveTab] = useState('people') // people, matches, profile
+  
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isLogin, setIsLogin] = useState(true)
+  const [authMessage, setAuthMessage] = useState('')
+  
+  const [users, setUsers] = useState([])
+  const [matches, setMatches] = useState([])
+  const [likedUsers, setLikedUsers] = useState([])
+  const [selectedProfile, setSelectedProfile] = useState(null)
+  
+  const [selectedMatch, setSelectedMatch] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const messagesEndRef = useRef(null)
+  const chatSubscription = useRef(null)
+  const heartbeatInterval = useRef(null)
+  const onlineSubscription = useRef(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [chatMessages])
+
+  const updateOnlineStatus = useCallback(async (isOnline) => {
+    if (!user) return
+    await supabase
+      .from('profiles')
+      .update({ is_online: isOnline, last_seen: new Date().toISOString() })
+      .eq('id', user.id)
+  }, [user])
+
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatInterval.current) clearInterval(heartbeatInterval.current)
+    updateOnlineStatus(true)
+    heartbeatInterval.current = setInterval(() => {
+      if (user) updateOnlineStatus(true)
+    }, 30000)
+  }, [user, updateOnlineStatus])
+
+  const detectLocation = () => {
+    setDetectingLocation(true)
+    setMessage('Detecting your location... 📍')
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords
+          try {
+            const geoResponse = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+            )
+            const geoData = await geoResponse.json()
+            const city = geoData.address?.city || geoData.address?.town || geoData.address?.village || 'Cape Town'
+            setLocation(city)
+            setLocationSource(`📍 Detected: ${city}`)
+            setMessage(`Location detected: ${city}`)
+            
+            if (user) {
+              await supabase
+                .from('profiles')
+                .update({ 
+                  location_city: city,
+                  location_geo: `POINT(${longitude} ${latitude})`,
+                  location_updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id)
+            }
+          } catch (err) {
+            setLocation('Cape Town')
+            setLocationSource('📍 Using Cape Town as default')
+          }
+          setDetectingLocation(false)
+        },
+        (error) => {
+          console.log('Geolocation error:', error)
+          setLocationSource('⚠️ Please select your city manually')
+          setDetectingLocation(false)
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      )
+    } else {
+      setLocationSource('⚠️ Browser doesn\'t support location detection')
+      setDetectingLocation(false)
+    }
+  }
+
+  const subscribeToOnlineStatus = useCallback(async () => {
+    if (onlineSubscription.current) {
+      onlineSubscription.current.unsubscribe()
+    }
+
+    const matchIds = matches.map(m => m.id)
+    const userIds = users.map(u => u.id)
+    const allIds = [...new Set([...matchIds, ...userIds])]
+    if (allIds.length === 0) return
+
+    onlineSubscription.current = supabase
+      .channel('online-status')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=in.(${allIds.join(',')})`
+      }, (payload) => {
+        setMatches(prevMatches => 
+          prevMatches.map(match => 
+            match.id === payload.new.id 
+              ? { ...match, is_online: payload.new.is_online, last_seen: payload.new.last_seen }
+              : match
+          )
+        )
+        setUsers(prevUsers =>
+          prevUsers.map(u =>
+            u.id === payload.new.id
+              ? { ...u, is_online: payload.new.is_online, last_seen: payload.new.last_seen }
+              : u
+          )
+        )
+        if (selectedProfile && selectedProfile.id === payload.new.id) {
+          setSelectedProfile(prev => ({ ...prev, is_online: payload.new.is_online, last_seen: payload.new.last_seen }))
+        }
+      })
+      .subscribe()
+  }, [matches, users, selectedProfile])
+
+  useEffect(() => {
+    if (matches.length > 0 || users.length > 0) {
+      subscribeToOnlineStatus()
+    }
+  }, [matches, users, subscribeToOnlineStatus])
+
+  const handleBeforeUnload = useCallback(() => {
+    if (user) updateOnlineStatus(false)
+  }, [user, updateOnlineStatus])
+
+  useEffect(() => {
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      if (heartbeatInterval.current) clearInterval(heartbeatInterval.current)
+      if (onlineSubscription.current) onlineSubscription.current.unsubscribe()
+    }
+  }, [handleBeforeUnload])
+
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  const checkUser = async () => {
+    const { data } = await supabase.auth.getSession()
+    const currentUser = data?.session?.user || null
+    setUser(currentUser)
+    
+    if (currentUser) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single()
+      
+      if (profileData && profileData.age) {
+        setProfile(profileData)
+        setPhotos(profileData.photos || [])
+        setDisplayName(profileData.display_name || '')
+        setAge(profileData.age || '')
+        setGender(profileData.gender || '')
+        setBio(profileData.bio || '')
+        setLocation(profileData.location_city || '')
+        setGoal(profileData.goal || '')
+        setLookingForGender(profileData.looking_for || '')
+        setLookingForAgeMin(profileData.looking_for_age_min || 18)
+        setLookingForAgeMax(profileData.looking_for_age_max || 60)
+        setLookingForRelationship(profileData.looking_for_relationship || '')
+        setInterests(profileData.interests || [])
+        setWishlist(profileData.wishlist || [])
+        setDrink(profileData.drink || '')
+        setBodyType(profileData.body_type || '')
+        setEyes(profileData.eyes || '')
+        setHair(profileData.hair || '')
+        setStep(5)
+        await fetchLikedUsers(currentUser.id)
+        await fetchMatches(currentUser.id)
+        await fetchUsers()
+        startHeartbeat()
+      } else {
+        setStep(0)
+      }
+    }
+    setLoading(false)
+  }
+
+  const fetchUsers = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', user?.id)
+      .eq('is_ai', false)
+      .order('created_at', { ascending: false })
+    
+    if (!error && data) {
+      setUsers(data)
+    }
+  }
+
+  const fetchLikedUsers = async (userId) => {
+    const { data } = await supabase
+      .from('likes')
+      .select('liked_id')
+      .eq('liker_id', userId)
+    setLikedUsers(data?.map(l => l.liked_id) || [])
+  }
+
+  const fetchMatches = async (userId) => {
+    const { data } = await supabase
+      .from('matches')
+      .select('*, profiles!matches_user_a_fkey(*), profiles!matches_user_b_fkey(*)')
+      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+      .eq('status', 'accepted')
+    
+    if (data) {
+      const matchProfiles = data.map(match => {
+        return match.user_a === userId ? match.profiles_user_b_fkey : match.profiles_user_a_fkey
+      })
+      setMatches(matchProfiles)
+    }
+  }
+
+  const fetchMessages = async (matchId) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('match_id', matchId)
+      .order('sent_at', { ascending: true })
+    
+    if (!error && data) {
+      setChatMessages(data)
+    }
+  }
+
+  const subscribeToMessages = (matchId) => {
+    if (chatSubscription.current) chatSubscription.current.unsubscribe()
+    chatSubscription.current = supabase
+      .channel(`match-${matchId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `match_id=eq.${matchId}`
+      }, (payload) => {
+        setChatMessages(prev => [...prev, payload.new])
+      })
+      .subscribe()
+  }
+
+  const sendMessage = async (e) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !selectedMatch || sending) return
+
+    setSending(true)
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        match_id: selectedMatch.match_id,
+        sender_id: user.id,
+        content: newMessage.trim(),
+        is_read: false
+      })
+
+    if (error) {
+      console.error('Send error:', error)
+      setMessage('Failed to send. Please try again.')
+    } else {
+      setNewMessage('')
+    }
+    setSending(false)
+  }
+
+  const openChat = async (match) => {
+    setSelectedMatch(match)
+    await fetchMessages(match.match_id)
+    subscribeToMessages(match.match_id)
+    setActiveTab('chat')
+  }
+
+  const closeChat = () => {
+    if (chatSubscription.current) chatSubscription.current.unsubscribe()
+    setSelectedMatch(null)
+    setChatMessages([])
+    setActiveTab('matches')
+  }
+
+  const handleLike = async (likedUserId) => {
+    await supabase.from('likes').insert({ liker_id: user.id, liked_id: likedUserId })
+    setLikedUsers([...likedUsers, likedUserId])
+    
+    const { data } = await supabase
+      .from('likes')
+      .select('*')
+      .eq('liker_id', likedUserId)
+      .eq('liked_id', user.id)
+    
+    if (data && data.length > 0) {
+      await supabase.from('matches').insert({ user_a: user.id, user_b: likedUserId, status: 'accepted' })
+      alert('🎉 It\'s a match! 🎉')
+      await fetchMatches(user.id)
+      await fetchUsers()
+    }
+  }
+
+  const handleSendMessageFromProfile = async () => {
+    // Create a match or get existing
+    const { data: existingMatch } = await supabase
+      .from('matches')
+      .select('*')
+      .or(`and(user_a.eq.${user.id},user_b.eq.${selectedProfile.id}),and(user_a.eq.${selectedProfile.id},user_b.eq.${user.id})`)
+      .maybeSingle()
+    
+    let matchId
+    if (existingMatch) {
+      matchId = existingMatch.id
+    } else {
+      const { data: newMatch } = await supabase
+        .from('matches')
+        .insert({ user_a: user.id, user_b: selectedProfile.id, status: 'pending' })
+        .select()
+        .single()
+      matchId = newMatch.id
+    }
+    
+    // Open chat with this match
+    const match = { ...selectedProfile, match_id: matchId }
+    setSelectedMatch(match)
+    await fetchMessages(matchId)
+    subscribeToMessages(matchId)
+    setActiveTab('chat')
+    setSelectedProfile(null)
+  }
+
+  const handleAuth = async (e) => {
+    e.preventDefault()
+    setAuthMessage('')
+    
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) setAuthMessage(error.message)
+      else {
+        setAuthMessage('Logged in!')
+        setTimeout(() => checkUser(), 500)
+      }
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) setAuthMessage(error.message)
+      else setAuthMessage('Check your email to verify!')
+    }
+  }
+
+  const uploadPhoto = async (file) => {
+    if (!user) return null
+    setUploading(true)
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}.${fileExt}`
+    const filePath = `${user.id}/${fileName}`
+    
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('profile-photos')
+        .upload(filePath, file)
+      if (uploadError) throw uploadError
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile-photos')
+        .getPublicUrl(filePath)
+      
+      const updatedPhotos = [...photos, publicUrl]
+      setPhotos(updatedPhotos)
+      setMessage('Photo uploaded!')
+      return publicUrl
+    } catch (error) {
+      console.error('Upload error:', error)
+      setMessage('Failed to upload photo.')
+      return null
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setMessage('Please select an image file.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('Image must be less than 5MB.')
+      return
+    }
+    await uploadPhoto(file)
+  }
+
+  const completeOnboarding = async () => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        display_name: displayName || email.split('@')[0],
+        age: parseInt(age),
+        gender,
+        looking_for: lookingForGender,
+        looking_for_age_min: lookingForAgeMin,
+        looking_for_age_max: lookingForAgeMax,
+        looking_for_relationship: lookingForRelationship,
+        bio,
+        location_city: location,
+        goal,
+        photos,
+        interests,
+        wishlist,
+        drink,
+        body_type: bodyType,
+        eyes,
+        hair
+      })
+      .eq('id', user.id)
+    
+    if (error) {
+      setMessage(error.message)
+    } else {
+      setStep(5)
+      await checkUser()
+    }
+  }
+
+  const handleLogout = async () => {
+    await updateOnlineStatus(false)
+    if (heartbeatInterval.current) clearInterval(heartbeatInterval.current)
+    if (chatSubscription.current) chatSubscription.current.unsubscribe()
+    if (onlineSubscription.current) onlineSubscription.current.unsubscribe()
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    setMatches([])
+    setUsers([])
+    setSelectedMatch(null)
+    setChatMessages([])
+    setActiveTab('people')
+    setEmail('')
+    setPassword('')
+    setAuthMessage('')
+    setStep(0)
+  }
+
+  const formatLastSeen = (lastSeen) => {
+    if (!lastSeen) return 'Unknown'
+    const mins = Math.floor((new Date() - new Date(lastSeen)) / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins} minutes ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours} hours ago`
+    return `${Math.floor(hours / 24)} days ago`
+  }
+
+  const interestOptions = [
+    'Biking', 'Reading books', 'Camping', 'Cooking', 'Dancing',
+    'Hobbies & Crafts', 'Movies', 'Museums & Art', 'Music & Concerts',
+    'Nature', 'Travelling', 'Photography', 'Hiking', 'Swimming',
+    'Yoga', 'Meditation', 'Wine tasting', 'Coffee', 'Beach', 'Sunset'
+  ]
+
+  const toggleInterest = (interest) => {
+    if (interests.includes(interest)) {
+      setInterests(interests.filter(i => i !== interest))
+    } else {
+      setInterests([...interests, interest])
+    }
+  }
+
+  const toggleWishlist = (item) => {
+    if (wishlist.includes(item)) {
+      setWishlist(wishlist.filter(w => w !== item))
+    } else {
+      setWishlist([...wishlist, item])
+    }
+  }
+
+  const wishlistOptions = [
+    'Trust & honesty', 'Adventure & travel', 'Good conversation',
+    'Sense of humor', 'Kindness', 'Loyalty', 'Romance', 'Family oriented',
+    'Career driven', 'Spiritual', 'Active lifestyle', 'Homebody'
+  ]
+
+  // Filter users based on search
+  const filteredUsers = users.filter(u => 
+    searchQuery === '' || 
+    u.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.location_city?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>
+  }
+
+  // Login/Signup Page
+  if (!user) {
+    return (
+      <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
+        <h1 style={{ textAlign: 'center' }}>🔥 Flame Connect</h1>
+        <form onSubmit={handleAuth}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={{ width: '100%', padding: '10px', margin: '10px 0' }}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ width: '100%', padding: '10px', margin: '10px 0' }}
+            required
+          />
+          <button type="submit" style={{ width: '100%', padding: '10px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+            {isLogin ? 'Login' : 'Sign Up'}
+          </button>
+        </form>
+        <button onClick={() => setIsLogin(!isLogin)} style={{ width: '100%', padding: '10px', marginTop: '10px', cursor: 'pointer' }}>
+          {isLogin ? 'Need an account? Sign Up' : 'Have an account? Login'}
+        </button>
+        {authMessage && <p style={{ textAlign: 'center', marginTop: '10px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
+      </div>
+    )
+  }
+
+  // Onboarding Steps (0-4)
+  if (step < 5) {
+    if (step === 0) {
+      return (
+        <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
+          <h1>🔥 Flame Connect</h1>
+          <h3>What is your goal?</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', margin: '20px 0' }}>
+            {['Serious', 'Romantic', 'Flirty', 'Pen pal', 'Naughty'].map(g => (
+              <button key={g} onClick={() => { setGoal(g); setStep(1); }} style={{ padding: '10px 20px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>{g}</button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    if (step === 1) {
+      return (
+        <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
+          <h1>🔥 Flame Connect</h1>
+          <h3>Who attracts you the most?</h3>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', margin: '20px 0' }}>
+            {['Men', 'Women', 'Both'].map(g => (
+              <button key={g} onClick={() => setLookingForGender(g.toLowerCase())} style={{ padding: '10px 20px', background: lookingForGender === g.toLowerCase() ? '#ff6b6b' : '#eee', color: lookingForGender === g.toLowerCase() ? 'white' : 'black', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>{g}</button>
+            ))}
+          </div>
+          <h3>Age between:</h3>
+          <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' }}>
+            <input type="number" value={lookingForAgeMin} onChange={(e) => setLookingForAgeMin(parseInt(e.target.value))} style={{ padding: '10px', width: '80px' }} min={18} max={100} />
+            <span>to</span>
+            <input type="number" value={lookingForAgeMax} onChange={(e) => setLookingForAgeMax(parseInt(e.target.value))} style={{ padding: '10px', width: '80px' }} min={18} max={100} />
+          </div>
+          <button onClick={() => setStep(2)} style={{ marginTop: '30px', padding: '12px 30px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Next</button>
+        </div>
+      )
+    }
+    if (step === 2) {
+      return (
+        <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
+          <h1>🔥 Flame Connect</h1>
+          <h3>Add your photo</h3>
+          <p>Members with photos receive more messages!</p>
+          <div style={{ margin: '20px 0' }}>
+            {photos.length > 0 && <img src={photos[0]} alt="Profile" style={{ width: '150px', height: '150px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px' }} />}
+            <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} id="photo-upload" />
+            <label htmlFor="photo-upload" style={{ display: 'inline-block', padding: '12px 30px', background: '#4CAF50', color: 'white', borderRadius: '25px', cursor: 'pointer' }}>
+              {uploading ? 'Uploading...' : (photos.length > 0 ? 'Change Photo' : 'Upload Photo')}
+            </label>
+          </div>
+          <button onClick={() => setStep(3)} disabled={photos.length === 0} style={{ padding: '12px 30px', background: photos.length > 0 ? '#ff6b6b' : '#ccc', color: 'white', border: 'none', borderRadius: '25px', cursor: photos.length > 0 ? 'pointer' : 'not-allowed' }}>Next</button>
+          {message && <p style={{ color: 'green', marginTop: '10px' }}>{message}</p>}
+        </div>
+      )
+    }
+    if (step === 3) {
+      return (
+        <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
+          <h1>🔥 Flame Connect</h1>
+          <h3>My Interests</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', margin: '20px 0' }}>
+            {interestOptions.map(interest => (
+              <button key={interest} onClick={() => toggleInterest(interest)} style={{ padding: '8px 15px', background: interests.includes(interest) ? '#ff6b6b' : '#eee', color: interests.includes(interest) ? 'white' : 'black', border: 'none', borderRadius: '20px', cursor: 'pointer', fontSize: '12px' }}>{interest}</button>
+            ))}
+          </div>
+          <button onClick={() => setStep(4)} style={{ padding: '12px 30px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Next</button>
+        </div>
+      )
+    }
+    if (step === 4) {
+      return (
+        <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px' }}>
+          <h1 style={{ textAlign: 'center' }}>🔥 Flame Connect</h1>
+          <h3 style={{ textAlign: 'center' }}>About Me</h3>
+          <input type="text" placeholder="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }} />
+          <input type="number" placeholder="Age" value={age} onChange={(e) => setAge(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }} />
+          <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }}>
+            <option value="">Select Gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+          
+          <div style={{ margin: '10px 0' }}>
+            <button onClick={detectLocation} disabled={detectingLocation} style={{ padding: '10px 15px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', width: '100%' }}>
+              {detectingLocation ? '📍 Detecting...' : '📍 Auto-detect My Location'}
+            </button>
+            {locationSource && <p style={{ fontSize: '12px', marginTop: '5px', color: '#666' }}>{locationSource}</p>}
+            <input type="text" placeholder="Or type your city" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }} />
+          </div>
+          
+          <h4>Lifestyle</h4>
+          <select value={drink} onChange={(e) => setDrink(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }}>
+            <option value="">Drink?</option>
+            <option value="Never">Never</option>
+            <option value="Occasionally">Occasionally</option>
+            <option value="Socially">Socially</option>
+            <option value="Regularly">Regularly</option>
+          </select>
+          <select value={bodyType} onChange={(e) => setBodyType(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }}>
+            <option value="">Body type</option>
+            <option value="Slim">Slim</option>
+            <option value="Athletic">Athletic</option>
+            <option value="Average">Average</option>
+            <option value="Full figured">Full figured</option>
+          </select>
+          <select value={eyes} onChange={(e) => setEyes(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }}>
+            <option value="">Eye color</option>
+            <option value="Brown">Brown</option>
+            <option value="Blue">Blue</option>
+            <option value="Green">Green</option>
+            <option value="Hazel">Hazel</option>
+          </select>
+          <select value={hair} onChange={(e) => setHair(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }}>
+            <option value="">Hair color</option>
+            <option value="Black">Black</option>
+            <option value="Brown">Brown</option>
+            <option value="Blonde">Blonde</option>
+            <option value="Red">Red</option>
+          </select>
+          
+          <textarea placeholder="Bio - Tell others about yourself..." value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0', minHeight: '100px' }} />
+          
+          <h4>What are you looking for?</h4>
+          <select value={lookingForRelationship} onChange={(e) => setLookingForRelationship(e.target.value)} style={{ width: '100%', padding: '10px', margin: '10px 0' }}>
+            <option value="">Select relationship goal</option>
+            <option value="Long-term">Long-term relationship</option>
+            <option value="Marriage">Marriage</option>
+            <option value="Friendship">Friendship</option>
+            <option value="Casual">Casual dating</option>
+          </select>
+          
+          <h4>My Wishlist (What matters to you)</h4>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', margin: '10px 0' }}>
+            {wishlistOptions.map(item => (
+              <button key={item} onClick={() => toggleWishlist(item)} style={{ padding: '6px 12px', background: wishlist.includes(item) ? '#ff6b6b' : '#eee', color: wishlist.includes(item) ? 'white' : 'black', border: 'none', borderRadius: '20px', cursor: 'pointer', fontSize: '12px' }}>{item}</button>
+            ))}
+          </div>
+          
+          <button onClick={completeOnboarding} style={{ width: '100%', padding: '12px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Complete Profile</button>
+          {message && <p style={{ color: 'red', marginTop: '10px' }}>{message}</p>}
+        </div>
+      )
+    }
+  }
+
+  // Chat View
+  if (activeTab === 'chat' && selectedMatch) {
+    return (
+      <div style={{ maxWidth: '600px', margin: '20px auto', padding: '20px', height: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #ccc' }}>
+          <button onClick={closeChat} style={{ padding: '8px 15px', cursor: 'pointer', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '5px' }}>← Back</button>
+          <div>
+            <h2 style={{ margin: 0 }}>{selectedMatch.display_name || selectedMatch.email?.split('@')[0]}</h2>
+            <div style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: selectedMatch.is_online ? '#4CAF50' : '#999' }}></span>
+              <span style={{ color: '#666' }}>{selectedMatch.is_online ? 'Online' : `Last seen ${formatLastSeen(selectedMatch.last_seen)}`}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px', background: '#f9f9f9', borderRadius: '10px', marginBottom: '10px' }}>
+          {chatMessages.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '#999', padding: '50px' }}>No messages yet. Say hi! 👋</p>
+          ) : (
+            chatMessages.map((msg, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: msg.sender_id === user.id ? 'flex-end' : 'flex-start', marginBottom: '10px' }}>
+                <div style={{ maxWidth: '70%', padding: '10px 15px', borderRadius: '20px', background: msg.sender_id === user.id ? '#ff6b6b' : '#e0e0e0', color: msg.sender_id === user.id ? 'white' : 'black' }}>
+                  {msg.content}
+                  <div style={{ fontSize: '10px', marginTop: '5px', opacity: 0.7 }}>
+                    {new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <form onSubmit={sendMessage} style={{ display: 'flex', gap: '10px' }}>
+          <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." style={{ flex: 1, padding: '12px', border: '1px solid #ccc', borderRadius: '25px', fontSize: '16px' }} disabled={sending} />
+          <button type="submit" disabled={sending || !newMessage.trim()} style={{ padding: '12px 20px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>{sending ? '...' : 'Send'}</button>
+        </form>
+      </div>
+    )
+  }
+
+  // Profile Detail View (The Dating.com style card you want)
+  if (selectedProfile) {
+    const p = selectedProfile
+    const bioPreview = p.bio?.length > 150 ? p.bio.substring(0, 150) + '...' : p.bio
+    const isAlreadyLiked = likedUsers.includes(p.id)
+    
+    return (
+      <div style={{ maxWidth: '500px', margin: '20px auto', padding: '20px' }}>
+        <button onClick={() => setSelectedProfile(null)} style={{ marginBottom: '20px', padding: '8px 15px', cursor: 'pointer', background: '#eee', border: 'none', borderRadius: '5px' }}>← Back to People</button>
+        
+        {/* Profile Photo */}
+        <div style={{ textAlign: 'center' }}>
+          {p.photos && p.photos.length > 0 ? (
+            <img src={p.photos[0]} alt={p.display_name} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', marginBottom: '15px' }} />
+          ) : (
+            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#ddd', margin: '0 auto 15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
+          )}
+          <h2>{p.display_name || p.email?.split('@')[0]}, {p.age}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: p.is_online ? '#4CAF50' : '#999' }}></span>
+            <span style={{ color: '#666' }}>{p.is_online ? 'Online' : `Last seen ${formatLastSeen(p.last_seen)}`}</span>
+            {p.location_city && <span style={{ color: '#666' }}>• 📍 {p.location_city}</span>}
+          </div>
+        </div>
+        
+        {/* Bio with Continue Reading */}
+        <div style={{ margin: '20px 0', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
+          <p>{showFullBio ? p.bio : bioPreview}</p>
+          {p.bio && p.bio.length > 150 && (
+            <button onClick={() => setShowFullBio(!showFullBio)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', marginTop: '5px' }}>
+              {showFullBio ? 'Show less' : 'Continue Reading'}
+            </button>
+          )}
+        </div>
+        
+        {/* About Me Section */}
+        {(p.drink || p.body_type || p.eyes || p.hair) && (
+          <div style={{ margin: '20px 0', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
+            <h3 style={{ marginTop: 0 }}>About Me</h3>
+            {p.drink && <p><strong>🍷 Drink:</strong> {p.drink}</p>}
+            {p.body_type && <p><strong>💪 Body type:</strong> {p.body_type}</p>}
+            {p.eyes && <p><strong>👁️ Eyes:</strong> {p.eyes}</p>}
+            {p.hair && <p><strong>💇 Hair:</strong> {p.hair}</p>}
+          </div>
+        )}
+        
+        {/* Looking For Section */}
+        <div style={{ margin: '20px 0', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
+          <h3 style={{ marginTop: 0 }}>Looking for</h3>
+          <p>{p.looking_for || 'Not specified'} • {p.looking_for_age_min || 18} - {p.looking_for_age_max || 60} years old</p>
+          {p.looking_for_relationship && <p>for {p.looking_for_relationship}</p>}
+        </div>
+        
+        {/* Interests Tags */}
+        {p.interests && p.interests.length > 0 && (
+          <div style={{ margin: '20px 0', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
+            <h3 style={{ marginTop: 0 }}>Interests</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {p.interests.map(i => <span key={i} style={{ background: '#e0e0e0', padding: '4px 12px', borderRadius: '20px', fontSize: '12px' }}>🏷️ {i}</span>)}
+            </div>
+          </div>
+        )}
+        
+        {/* Wishlist Section */}
+        {p.wishlist && p.wishlist.length > 0 && (
+          <div style={{ margin: '20px 0', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
+            <h3 style={{ marginTop: 0 }}>Wishlist</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {p.wishlist.map(w => <span key={w} style={{ background: '#e0e0e0', padding: '4px 12px', borderRadius: '20px', fontSize: '12px' }}>✨ {w}</span>)}
+            </div>
+          </div>
+        )}
+        
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <button 
+            onClick={async () => {
+              await handleLike(p.id)
+              setSelectedProfile(null)
+            }}
+            disabled={isAlreadyLiked}
+            style={{ flex: 1, padding: '12px', background: isAlreadyLiked ? '#ccc' : '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: isAlreadyLiked ? 'not-allowed' : 'pointer', fontSize: '16px' }}
+          >
+            {isAlreadyLiked ? '✓ Liked' : '❤️ Send Like'}
+          </button>
+          <button 
+            onClick={handleSendMessageFromProfile}
+            style={{ flex: 1, padding: '12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontSize: '16px' }}
+          >
+            💬 Send Message
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Matches/Inbox View
+  if (activeTab === 'matches') {
+    return (
+      <div style={{ maxWidth: '600px', margin: '20px auto', padding: '20px' }}>
+        {/* Top Navigation - Mobile/Desktop Friendly */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #eee', flexWrap: 'wrap', gap: '10px' }}>
+          <h1 style={{ margin: 0, fontSize: '24px' }}>🔥 Flame Connect</h1>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+            <button onClick={() => { setShowSearch(false); setActiveTab('people'); setSearchQuery(''); }} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#666' }}>👥 People</button>
+            <button onClick={() => setActiveTab('matches')} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#ff6b6b', borderBottom: '2px solid #ff6b6b' }}>💬 Inbox</button>
+            <button onClick={() => setActiveTab('profile')} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#666' }}>
+              {photos.length > 0 ? (
+                <img src={photos[0]} alt="Profile" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                '👤 Profile'
+              )}
+            </button>
+          </div>
+        </div>
+        
+        <h2 style={{ marginTop: 0 }}>Your Conversations</h2>
+        {matches.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>
+            <p style={{ fontSize: '18px' }}>💬 No conversations yet</p>
+            <p style={{ fontSize: '14px', marginTop: '10px' }}>Explore profiles and send a message to start chatting!</p>
+            <button onClick={() => setActiveTab('people')} style={{ marginTop: '20px', padding: '12px 24px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Browse People</button>
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {matches.map(match => (
+            <div key={match.id} style={{ border: '1px solid #eee', borderRadius: '10px', padding: '12px', cursor: 'pointer', background: 'white' }} onClick={() => openChat(match)}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                {match.photos && match.photos.length > 0 ? (
+                  <img src={match.photos[0]} alt={match.display_name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👤</div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong>{match.display_name || match.email?.split('@')[0]}</strong>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: match.is_online ? '#4CAF50' : '#999' }}></span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{match.age} years • {match.location_city || 'Anywhere'}</div>
+                </div>
+                <button style={{ background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '20px', padding: '6px 12px', cursor: 'pointer' }}>💬</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Profile View (Settings/Edit)
+  if (activeTab === 'profile') {
+    return (
+      <div style={{ maxWidth: '500px', margin: '20px auto', padding: '20px' }}>
+        {/* Top Navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #eee', flexWrap: 'wrap', gap: '10px' }}>
+          <h1 style={{ margin: 0, fontSize: '24px' }}>🔥 Flame Connect</h1>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+            <button onClick={() => { setShowSearch(false); setActiveTab('people'); setSearchQuery(''); }} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#666' }}>👥 People</button>
+            <button onClick={() => setActiveTab('matches')} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#666' }}>💬 Inbox</button>
+            <button onClick={() => setActiveTab('profile')} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#ff6b6b', borderBottom: '2px solid #ff6b6b' }}>
+              {photos.length > 0 ? (
+                <img src={photos[0]} alt="Profile" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                '👤 Profile'
+              )}
+            </button>
+          </div>
+        </div>
+        
+        <div style={{ textAlign: 'center' }}>
+          {photos.length > 0 ? (
+            <img src={photos[0]} alt="Profile" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px' }} />
+          ) : (
+            <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: '#ddd', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📷</div>
+          )}
+          <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} id="profile-photo" />
+          <label htmlFor="profile-photo" style={{ display: 'inline-block', padding: '5px 15px', background: '#4CAF50', color: 'white', borderRadius: '20px', cursor: 'pointer', fontSize: '12px' }}>Change Photo</label>
+          
+          <h2>{profile?.display_name || user.email?.split('@')[0]}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#4CAF50' }}></span>
+            <span style={{ color: '#666' }}>Online</span>
+            <span style={{ color: '#666' }}>• 📍 {profile?.location_city || 'Location not set'}</span>
+          </div>
+        </div>
+        
+        <div style={{ marginTop: '30px' }}>
+          <button onClick={() => { setStep(4); }} style={{ width: '100%', padding: '12px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginBottom: '10px', fontSize: '16px' }}>✏️ Edit Profile</button>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: '#ccc', color: 'black', border: 'none', borderRadius: '25px', cursor: 'pointer', fontSize: '16px' }}>🚪 Logout</button>
+        </div>
+      </div>
+    )
+  }
+
+  // Main People Grid View (Dating.com style - Mobile & Desktop Responsive)
+  return (
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+      {/* Top Navigation - Mobile/Desktop Friendly */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #eee', flexWrap: 'wrap', gap: '10px' }}>
+        <h1 style={{ margin: 0, fontSize: '24px' }}>🔥 Flame Connect</h1>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => { setShowSearch(!showSearch); setSearchQuery(''); }} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: showSearch ? '#ff6b6b' : '#666' }}>🔍 Search</button>
+          <button onClick={() => setActiveTab('matches')} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#666' }}>💬 Inbox</button>
+          <button onClick={() => setActiveTab('profile')} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', padding: '8px', color: '#666' }}>
+            {photos.length > 0 ? (
+              <img src={photos[0]} alt="Profile" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+            ) : (
+              '👤 Profile'
+            )}
+          </button>
+        </div>
+      </div>
+      
+      {/* Search Bar */}
+      {showSearch && (
+        <div style={{ marginBottom: '20px' }}>
+          <input 
+            type="text" 
+            placeholder="Search by name, location, or interest..." 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+            style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '25px', fontSize: '16px' }} 
+          />
+          {searchQuery && (
+            <div style={{ marginTop: '10px', fontSize: '14px', color: '#666', textAlign: 'center' }}>
+              Found {filteredUsers.length} result{filteredUsers.length !== 1 ? 's' : ''}
+              <button onClick={() => setSearchQuery('')} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}>Clear</button>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* User Grid - Responsive: 1 column on mobile, 3-4 columns on desktop */}
+      {filteredUsers.length > 0 ? (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', 
+          gap: '20px' 
+        }}>
+          {filteredUsers.map(u => (
+            <div key={u.id} onClick={() => setSelectedProfile(u)} style={{ cursor: 'pointer', background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', transition: 'transform 0.2s' }}>
+              <div style={{ position: 'relative' }}>
+                {u.photos && u.photos.length > 0 ? (
+                  <img src={u.photos[0]} alt={u.display_name} style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '200px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
+                )}
+                <div style={{ position: 'absolute', top: '10px', right: '10px', background: u.is_online ? '#4CAF50' : '#999', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '10px' }}>
+                  {u.is_online ? '● Online' : '○ Offline'}
+                </div>
+              </div>
+              <div style={{ padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px' }}>{u.display_name || u.email?.split('@')[0]}, {u.age}</h3>
+                  <span style={{ color: '#666', fontSize: '12px' }}>📍 {u.location_city || '?'}</span>
+                </div>
+                <p style={{ fontSize: '13px', color: '#666', margin: '8px 0', height: '40px', overflow: 'hidden' }}>{u.bio?.substring(0, 60)}...</p>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleLike(u.id); }}
+                  style={{ width: '100%', padding: '8px', background: likedUsers.includes(u.id) ? '#ccc' : '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}
+                  disabled={likedUsers.includes(u.id)}
+                >
+                  {likedUsers.includes(u.id) ? '✓ Liked' : '❤️ Like'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>
+          <p style={{ fontSize: '18px' }}>No users found{searchQuery ? ` matching "${searchQuery}"` : ''}.</p>
+          {searchQuery && <button onClick={() => setSearchQuery('')} style={{ marginTop: '20px', padding: '10px 20px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Clear Search</button>}
+          {!searchQuery && users.length === 0 && (
+            <div>
+              <p>No other users yet. Share your app with friends!</p>
+              <p style={{ fontSize: '12px', marginTop: '10px' }}>Or create a test account in incognito mode</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default App
