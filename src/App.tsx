@@ -20,6 +20,7 @@ function App() {
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showSignupModal, setShowSignupModal] = useState(false)
+  const [signupStep, setSignupStep] = useState(1)
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -207,145 +208,179 @@ function App() {
     return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>
   }
 
-  // LANDING PAGE (Dating.com style)
+  // LANDING PAGE - Premium Dating.com Style
   if (view === 'landing' && !user) {
     return (
-      <div style={{ fontFamily: 'Arial, sans-serif' }}>
-        {/* Navigation Bar */}
-        <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <h1 style={{ color: '#ff6b6b', margin: 0 }}>🔥 Flame Connect</h1>
-          <div style={{ display: 'flex', gap: '30px' }}>
-            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Home</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Features</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>About</a>
-            <button onClick={() => setShowLoginModal(true)} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '25px', cursor: 'pointer' }}>Login</button>
-            <button onClick={() => setShowSignupModal(true)} style={{ background: 'transparent', color: '#ff6b6b', border: '2px solid #ff6b6b', padding: '8px 20px', borderRadius: '25px', cursor: 'pointer' }}>Sign Up</button>
+      <div style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+        {/* Premium Navigation */}
+        <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 1000, boxShadow: '0 2px 20px rgba(0,0,0,0.05)' }}>
+          <h1 style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0, fontSize: '28px' }}>🔥 Flame Connect</h1>
+          <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+            <a href="#" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Home</a>
+            <a href="#" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Features</a>
+            <a href="#" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Success Stories</a>
+            <button onClick={() => setShowLoginModal(true)} style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', padding: '10px 28px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600', transition: 'transform 0.2s' }}>Login</button>
+            <button onClick={() => setShowSignupModal(true)} style={{ background: 'transparent', color: '#ff6b6b', border: '2px solid #ff6b6b', padding: '10px 28px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>Sign Up</button>
           </div>
         </nav>
 
-        {/* Hero Section */}
+        {/* Hero Section with Background Image */}
         <div style={{ 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+          background: 'linear-gradient(135deg, rgba(255,107,107,0.9) 0%, rgba(255,142,142,0.9) 100%), url("https://images.unsplash.com/photo-1516589091380-5d8e87f6999b?q=80&w=2070")', 
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
           color: 'white', 
           textAlign: 'center', 
-          padding: '100px 20px',
-          minHeight: '500px',
+          padding: '140px 20px',
+          minHeight: '600px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center'
         }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>Find Your Perfect Match 🔥</h1>
-          <p style={{ fontSize: '20px', marginBottom: '30px', maxWidth: '600px' }}>Join thousands of singles looking for meaningful connections. Love is just a click away!</p>
-          <button onClick={() => setShowSignupModal(true)} style={{ background: 'white', color: '#764ba2', border: 'none', padding: '15px 40px', fontSize: '18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' }}>Get Started →</button>
+          <h1 style={{ fontSize: '56px', marginBottom: '20px', fontWeight: '800' }}>Find Your Perfect Match 🔥</h1>
+          <p style={{ fontSize: '22px', marginBottom: '40px', maxWidth: '600px', opacity: 0.95 }}>Join thousands of singles looking for meaningful connections. Love is just a click away!</p>
+          <button onClick={() => setShowSignupModal(true)} style={{ background: 'white', color: '#ff6b6b', border: 'none', padding: '16px 48px', fontSize: '18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', transition: 'transform 0.2s', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>Get Started →</button>
         </div>
 
         {/* Features Section */}
-        <div style={{ padding: '60px 20px', textAlign: 'center', background: '#f9f9f9' }}>
-          <h2 style={{ fontSize: '32px', marginBottom: '40px' }}>Why Choose Flame Connect?</h2>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', flexWrap: 'wrap', maxWidth: '1000px', margin: '0 auto' }}>
-            <div style={{ flex: 1, minWidth: '200px', padding: '20px' }}>
+        <div style={{ padding: '80px 20px', textAlign: 'center', background: '#fef9f9' }}>
+          <h2 style={{ fontSize: '36px', marginBottom: '50px', color: '#333' }}>Why Choose Flame Connect?</h2>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '50px', flexWrap: 'wrap', maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ flex: 1, minWidth: '250px', padding: '30px', background: 'white', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔒</div>
-              <h3>Safe & Secure</h3>
-              <p>Your safety is our priority with advanced verification and moderation.</p>
+              <h3 style={{ fontSize: '22px', marginBottom: '10px' }}>Safe & Secure</h3>
+              <p style={{ color: '#666' }}>Your safety is our priority with advanced verification and moderation.</p>
             </div>
-            <div style={{ flex: 1, minWidth: '200px', padding: '20px' }}>
+            <div style={{ flex: 1, minWidth: '250px', padding: '30px', background: 'white', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <div style={{ fontSize: '48px', marginBottom: '15px' }}>💬</div>
-              <h3>Real-time Chat</h3>
-              <p>Connect instantly with matches through our real-time messaging system.</p>
+              <h3 style={{ fontSize: '22px', marginBottom: '10px' }}>Real-time Chat</h3>
+              <p style={{ color: '#666' }}>Connect instantly with matches through our real-time messaging system.</p>
             </div>
-            <div style={{ flex: 1, minWidth: '200px', padding: '20px' }}>
+            <div style={{ flex: 1, minWidth: '250px', padding: '30px', background: 'white', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <div style={{ fontSize: '48px', marginBottom: '15px' }}>📍</div>
-              <h3>Location Based</h3>
-              <p>Find singles near you with our smart location detection.</p>
+              <h3 style={{ fontSize: '22px', marginBottom: '10px' }}>Location Based</h3>
+              <p style={{ color: '#666' }}>Find singles near you with our smart location detection.</p>
             </div>
           </div>
         </div>
 
-        {/* Profile Cards Preview */}
-        <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '32px', marginBottom: '20px' }}>Meet Some of Our Members</h2>
-          <p style={{ color: '#666', marginBottom: '40px' }}>Join thousands of singles already finding love</p>
+        {/* Profile Cards Preview - Premium Style */}
+        <div style={{ padding: '80px 20px', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '36px', marginBottom: '20px', color: '#333' }}>Meet Some of Our Members</h2>
+          <p style={{ color: '#666', marginBottom: '50px', fontSize: '18px' }}>Join thousands of singles already finding love</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', flexWrap: 'wrap' }}>
             {[
-              { name: 'Sarah, 28', location: 'Cape Town', interest: 'Adventure seeker' },
-              { name: 'Michael, 32', location: 'Johannesburg', interest: 'Food lover' },
-              { name: 'Jessica, 26', location: 'Durban', interest: 'Beach enthusiast' }
+              { name: 'Sarah, 28', location: 'Cape Town', interest: 'Adventure seeker', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300' },
+              { name: 'Michael, 32', location: 'Johannesburg', interest: 'Food lover', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300' },
+              { name: 'Jessica, 26', location: 'Durban', interest: 'Beach enthusiast', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300' }
             ].map((member, i) => (
-              <div key={i} style={{ width: '250px', background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-                <div style={{ height: '200px', background: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
-                <div style={{ padding: '15px' }}>
-                  <h3>{member.name}</h3>
-                  <p>📍 {member.location}</p>
-                  <p style={{ color: '#666' }}>{member.interest}</p>
-                  <button style={{ width: '100%', padding: '10px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>View Profile</button>
+              <div key={i} style={{ width: '300px', background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', transition: 'transform 0.3s, box-shadow 0.3s', cursor: 'pointer' }}>
+                <div style={{ height: '300px', background: `url(${member.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
+                <div style={{ padding: '20px', textAlign: 'center' }}>
+                  <h3 style={{ fontSize: '20px', marginBottom: '5px' }}>{member.name}</h3>
+                  <p style={{ color: '#666', marginBottom: '5px' }}>📍 {member.location}</p>
+                  <p style={{ color: '#ff6b6b', fontWeight: '500' }}>{member.interest}</p>
+                  <button style={{ width: '100%', padding: '12px', marginTop: '15px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>View Profile</button>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Trust Signals / Testimonials */}
-        <div style={{ padding: '60px 20px', background: '#f9f9f9', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '32px', marginBottom: '40px' }}>What Our Users Say</h2>
+        {/* Testimonials */}
+        <div style={{ padding: '80px 20px', background: '#fef9f9', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '36px', marginBottom: '50px', color: '#333' }}>What Our Users Say</h2>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', flexWrap: 'wrap', maxWidth: '1000px', margin: '0 auto' }}>
-            <div style={{ flex: 1, minWidth: '250px', background: 'white', padding: '20px', borderRadius: '15px' }}>
-              <p>"I found the love of my life on Flame Connect! The platform made it so easy to connect with like-minded people."</p>
-              <h4>- Lisa M.</h4>
+            <div style={{ flex: 1, minWidth: '280px', background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.05)' }}>
+              <p style={{ fontStyle: 'italic', color: '#555', marginBottom: '20px' }}>"I found the love of my life on Flame Connect! The platform made it so easy to connect with like-minded people."</p>
+              <h4 style={{ color: '#ff6b6b' }}>- Lisa M.</h4>
             </div>
-            <div style={{ flex: 1, minWidth: '250px', background: 'white', padding: '20px', borderRadius: '15px' }}>
-              <p>"The real-time chat feature is amazing. I love how quickly I can connect with matches."</p>
-              <h4>- David K.</h4>
+            <div style={{ flex: 1, minWidth: '280px', background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.05)' }}>
+              <p style={{ fontStyle: 'italic', color: '#555', marginBottom: '20px' }}>"The real-time chat feature is amazing. I love how quickly I can connect with matches."</p>
+              <h4 style={{ color: '#ff6b6b' }}>- David K.</h4>
+            </div>
+            <div style={{ flex: 1, minWidth: '280px', background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.05)' }}>
+              <p style={{ fontStyle: 'italic', color: '#555', marginBottom: '20px' }}>"Finally, a dating app that feels safe and authentic. Highly recommend!"</p>
+              <h4 style={{ color: '#ff6b6b' }}>- Rachel T.</h4>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <footer style={{ background: '#333', color: 'white', padding: '40px 20px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <a href="#" style={{ color: 'white', textDecoration: 'none' }}>About Us</a>
-            <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Terms of Service</a>
-            <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Privacy Policy</a>
-            <a href="#" style={{ color: 'white', textDecoration: 'none' }}>Contact</a>
+        {/* Footer with Trust Badges */}
+        <footer style={{ background: '#1a1a2e', color: 'white', padding: '60px 20px 30px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '40px', maxWidth: '1200px', margin: '0 auto' }}>
+            <div>
+              <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>🔥 Flame Connect</h3>
+              <p style={{ color: '#aaa' }}>Find your perfect match today.</p>
+              <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
+                <span style={{ fontSize: '24px', cursor: 'pointer' }}>📘</span>
+                <span style={{ fontSize: '24px', cursor: 'pointer' }}>🐦</span>
+                <span style={{ fontSize: '24px', cursor: 'pointer' }}>📷</span>
+              </div>
+            </div>
+            <div>
+              <h4>Quick Links</h4>
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>About Us</a></li>
+                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Success Stories</a></li>
+                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Safety Tips</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4>Legal</h4>
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Terms of Service</a></li>
+                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Privacy Policy</a></li>
+                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Refund Policy</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4>Trust Badges</h4>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>SSL Secure</span>
+                <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>Verified Profiles</span>
+                <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>24/7 Support</span>
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
-            <span style={{ fontSize: '24px', cursor: 'pointer' }}>📘</span>
-            <span style={{ fontSize: '24px', cursor: 'pointer' }}>🐦</span>
-            <span style={{ fontSize: '24px', cursor: 'pointer' }}>📷</span>
+          <div style={{ textAlign: 'center', marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #333', color: '#aaa' }}>
+            <p>&copy; 2024 Flame Connect. All rights reserved.</p>
           </div>
-          <p>&copy; 2024 Flame Connect. All rights reserved.</p>
         </footer>
 
         {/* Login Modal */}
         {showLoginModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '400px', width: '90%' }}>
-              <h2 style={{ textAlign: 'center' }}>Login to Flame Connect</h2>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+              <h2 style={{ textAlign: 'center', marginBottom: '10px', color: '#333' }}>Welcome Back</h2>
+              <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>Sign in to continue your journey</p>
               <form onSubmit={handleAuth}>
-                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '12px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <button type="submit" style={{ width: '100%', padding: '12px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Login</button>
+                <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
+                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
+                <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', marginTop: '10px' }}>Login</button>
               </form>
-              <button onClick={() => { setShowLoginModal(false); setShowSignupModal(true); }} style={{ width: '100%', padding: '12px', marginTop: '10px', background: 'none', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '8px', cursor: 'pointer' }}>Create Account</button>
-              <button onClick={() => setShowLoginModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
-              {authMessage && <p style={{ textAlign: 'center', marginTop: '10px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
+              <button onClick={() => { setShowLoginModal(false); setShowSignupModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '15px', background: 'none', border: '2px solid #ff6b6b', color: '#ff6b6b', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Create New Account</button>
+              <button onClick={() => setShowLoginModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '50px', cursor: 'pointer' }}>Cancel</button>
+              {authMessage && <p style={{ textAlign: 'center', marginTop: '15px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
             </div>
           </div>
         )}
 
         {/* Signup Modal */}
         {showSignupModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '400px', width: '90%' }}>
-              <h2 style={{ textAlign: 'center' }}>Create Your Account</h2>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+              <h2 style={{ textAlign: 'center', marginBottom: '10px', color: '#333' }}>Create Account</h2>
+              <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>Join Flame Connect today</p>
               <form onSubmit={handleAuth}>
-                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '12px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '12px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <button type="submit" style={{ width: '100%', padding: '12px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Sign Up</button>
+                <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
+                <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
+                <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', marginTop: '10px' }}>Sign Up</button>
               </form>
-              <button onClick={() => { setShowSignupModal(false); setShowLoginModal(true); }} style={{ width: '100%', padding: '12px', marginTop: '10px', background: 'none', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '8px', cursor: 'pointer' }}>Already have an account? Login</button>
-              <button onClick={() => setShowSignupModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
-              {authMessage && <p style={{ textAlign: 'center', marginTop: '10px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
+              <button onClick={() => { setShowSignupModal(false); setShowLoginModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '15px', background: 'none', border: '2px solid #ff6b6b', color: '#ff6b6b', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Already have an account? Login</button>
+              <button onClick={() => setShowSignupModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '50px', cursor: 'pointer' }}>Cancel</button>
+              {authMessage && <p style={{ textAlign: 'center', marginTop: '15px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
             </div>
           </div>
         )}
@@ -493,7 +528,7 @@ function App() {
     )
   }
 
-  // PROFILE DETAIL VIEW (when clicking on a user card)
+  // PROFILE DETAIL VIEW
   if (selectedProfile) {
     const p = selectedProfile
     return (
