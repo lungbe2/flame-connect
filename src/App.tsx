@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 
 function App() {
@@ -26,8 +26,69 @@ function App() {
   const [isLogin, setIsLogin] = useState(true)
   const [authMessage, setAuthMessage] = useState('')
 
+  // ========== ONLINE PRESENCE FUNCTIONS ==========
+  
+  // Update online status in database
+  const updateOnlineStatus = useCallback(async (isOnline) => {
+    if (!user) return
+    console.log(`Setting online status to: ${isOnline} for user ${user.id}`)
+    await supabase
+      .from('profiles')
+      .update({ 
+        is_online: isOnline, 
+        last_seen: new Date().toISOString() 
+      })
+      .eq('id', user.id)
+  }, [user])
+
+  // Heartbeat to keep user online while active
+  const startHeartbeat = useCallback(() => {
+    const interval = setInterval(() => {
+      if (user) {
+        supabase
+          .from('profiles')
+          .update({ last_seen: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(() => console.log('Heartbeat sent'))
+      }
+    }, 30000) // Every 30 seconds
+    return () => clearInterval(interval)
+  }, [user])
+
+  // Subscribe to online status changes of other users
+  const subscribeToOnlineStatus = useCallback(() => {
+    const channel = supabase
+      .channel('online-status')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `is_online=eq.true`
+      }, (payload) => {
+        console.log('Online status update:', payload.new.display_name)
+        // Refresh users list when someone comes online/offline
+        fetchUsers()
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
+
+  // ========== MAIN FUNCTIONS ==========
+
   useEffect(() => {
     checkUser()
+    
+    // Handle tab close - mark user offline
+    const handleBeforeUnload = async () => {
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ is_online: false, last_seen: new Date().toISOString() })
+          .eq('id', user.id)
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [])
 
   const checkUser = async () => {
@@ -36,6 +97,9 @@ function App() {
     setUser(currentUser)
     
     if (currentUser) {
+      // Mark user online when they log in
+      await updateOnlineStatus(true)
+      
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -64,12 +128,20 @@ function App() {
   }
 
   const fetchUsers = async () => {
-    const { data } = await supabase
+    console.log('Fetching users...')
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .neq('id', user?.id)
+      .order('is_online', { ascending: false }) // Online users first
       .limit(50)
-    if (data) setUsers(data)
+    
+    if (!error && data) {
+      console.log(`Found ${data.length} users`)
+      setUsers(data)
+    } else if (error) {
+      console.error('Error fetching users:', error)
+    }
   }
 
   const fetchMatches = async (userId) => {
@@ -157,7 +229,9 @@ function App() {
         looking_for: lookingFor,
         bio,
         location_city: location,
-        photos
+        photos,
+        is_online: true,
+        last_seen: new Date().toISOString()
       })
       .eq('id', user.id)
     
@@ -174,17 +248,32 @@ function App() {
     setAuthMessage('')
     
     if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setAuthMessage(error.message)
-      else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setAuthMessage(error.message)
+      } else {
         setAuthMessage('Logged in!')
         setShowLoginModal(false)
+        // Mark user online
+        if (data.user) {
+          await supabase
+            .from('profiles')
+            .update({ is_online: true, last_seen: new Date().toISOString() })
+            .eq('id', data.user.id)
+        }
         setTimeout(() => checkUser(), 500)
       }
     } else {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) setAuthMessage(error.message)
-      else {
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: { display_name: displayName || email.split('@')[0] }
+        }
+      })
+      if (error) {
+        setAuthMessage(error.message)
+      } else {
         setAuthMessage('Check your email to verify!')
         setTimeout(() => setShowSignupModal(false), 2000)
       }
@@ -192,6 +281,13 @@ function App() {
   }
 
   const handleLogout = async () => {
+    // Mark user offline before logging out
+    if (user) {
+      await supabase
+        .from('profiles')
+        .update({ is_online: false, last_seen: new Date().toISOString() })
+        .eq('id', user.id)
+    }
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
@@ -201,7 +297,6 @@ function App() {
   }
 
   const [message, setMessage] = useState('')
-  const [showFullBio, setShowFullBio] = useState(false)
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>
@@ -210,147 +305,45 @@ function App() {
   // LANDING PAGE
   if (view === 'landing' && !user) {
     return (
-      <div style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-        <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 1000, boxShadow: '0 2px 20px rgba(0,0,0,0.05)' }}>
-          <h1 style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0, fontSize: '28px' }}>🔥 Flame Connect</h1>
+      <div style={{ fontFamily: 'Inter, sans-serif' }}>
+        <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          <h1 style={{ color: '#ff6b6b', margin: 0 }}>🔥 Flame Connect</h1>
           <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
-            <a href="#" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Home</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Features</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Success Stories</a>
-            <button onClick={() => setShowLoginModal(true)} style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', padding: '10px 28px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>Login</button>
-            <button onClick={() => setShowSignupModal(true)} style={{ background: 'transparent', color: '#ff6b6b', border: '2px solid #ff6b6b', padding: '10px 28px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>Sign Up</button>
+            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Home</a>
+            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Features</a>
+            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Success Stories</a>
+            <button onClick={() => setShowLoginModal(true)} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 28px', borderRadius: '25px', cursor: 'pointer' }}>Login</button>
+            <button onClick={() => setShowSignupModal(true)} style={{ background: 'transparent', color: '#ff6b6b', border: '2px solid #ff6b6b', padding: '10px 28px', borderRadius: '25px', cursor: 'pointer' }}>Sign Up</button>
           </div>
         </nav>
 
         <div style={{ 
-          background: 'linear-gradient(135deg, rgba(255,107,107,0.9) 0%, rgba(255,142,142,0.9) 100%), url("https://images.unsplash.com/photo-1516589091380-5d8e87f6999b?q=80&w=2070")', 
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', 
           color: 'white', 
           textAlign: 'center', 
-          padding: '140px 20px',
-          minHeight: '600px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center'
+          padding: '100px 20px'
         }}>
-          <h1 style={{ fontSize: '56px', marginBottom: '20px', fontWeight: '800' }}>Find Your Perfect Match 🔥</h1>
-          <p style={{ fontSize: '22px', marginBottom: '40px', maxWidth: '600px', opacity: 0.95 }}>Join thousands of singles looking for meaningful connections. Love is just a click away!</p>
-          <button onClick={() => setShowSignupModal(true)} style={{ background: 'white', color: '#ff6b6b', border: 'none', padding: '16px 48px', fontSize: '18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>Get Started →</button>
+          <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>Find Your Perfect Match 🔥</h1>
+          <p style={{ fontSize: '20px', marginBottom: '30px' }}>Join thousands of singles looking for meaningful connections.</p>
+          <button onClick={() => setShowSignupModal(true)} style={{ background: 'white', color: '#ff6b6b', border: 'none', padding: '15px 40px', fontSize: '18px', borderRadius: '50px', cursor: 'pointer' }}>Get Started →</button>
         </div>
 
-        <div style={{ padding: '80px 20px', textAlign: 'center', background: '#fef9f9' }}>
-          <h2 style={{ fontSize: '36px', marginBottom: '50px', color: '#333' }}>Why Choose Flame Connect?</h2>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '50px', flexWrap: 'wrap', maxWidth: '1200px', margin: '0 auto' }}>
-            <div style={{ flex: 1, minWidth: '250px', padding: '30px', background: 'white', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔒</div>
-              <h3 style={{ fontSize: '22px', marginBottom: '10px' }}>Safe & Secure</h3>
-              <p style={{ color: '#666' }}>Your safety is our priority with advanced verification and moderation.</p>
-            </div>
-            <div style={{ flex: 1, minWidth: '250px', padding: '30px', background: 'white', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '48px', marginBottom: '15px' }}>💬</div>
-              <h3 style={{ fontSize: '22px', marginBottom: '10px' }}>Real-time Chat</h3>
-              <p style={{ color: '#666' }}>Connect instantly with matches through our real-time messaging system.</p>
-            </div>
-            <div style={{ flex: 1, minWidth: '250px', padding: '30px', background: 'white', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '48px', marginBottom: '15px' }}>📍</div>
-              <h3 style={{ fontSize: '22px', marginBottom: '10px' }}>Location Based</h3>
-              <p style={{ color: '#666' }}>Find singles near you with our smart location detection.</p>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ padding: '80px 20px', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '36px', marginBottom: '20px', color: '#333' }}>Meet Some of Our Members</h2>
-          <p style={{ color: '#666', marginBottom: '50px', fontSize: '18px' }}>Join thousands of singles already finding love</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', flexWrap: 'wrap' }}>
-            {[
-              { name: 'Sarah, 28', location: 'Cape Town', interest: 'Adventure seeker', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300' },
-              { name: 'Michael, 32', location: 'Johannesburg', interest: 'Food lover', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300' },
-              { name: 'Jessica, 26', location: 'Durban', interest: 'Beach enthusiast', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300' }
-            ].map((member, i) => (
-              <div key={i} style={{ width: '300px', background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', transition: 'transform 0.3s', cursor: 'pointer' }}>
-                <div style={{ height: '300px', background: `url(${member.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
-                <div style={{ padding: '20px', textAlign: 'center' }}>
-                  <h3 style={{ fontSize: '20px', marginBottom: '5px' }}>{member.name}</h3>
-                  <p style={{ color: '#666', marginBottom: '5px' }}>📍 {member.location}</p>
-                  <p style={{ color: '#ff6b6b', fontWeight: '500' }}>{member.interest}</p>
-                  <button style={{ width: '100%', padding: '12px', marginTop: '15px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>View Profile</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ padding: '80px 20px', background: '#fef9f9', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '36px', marginBottom: '50px', color: '#333' }}>What Our Users Say</h2>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', flexWrap: 'wrap', maxWidth: '1000px', margin: '0 auto' }}>
-            <div style={{ flex: 1, minWidth: '280px', background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.05)' }}>
-              <p style={{ fontStyle: 'italic', color: '#555', marginBottom: '20px' }}>"I found the love of my life on Flame Connect! The platform made it so easy to connect with like-minded people."</p>
-              <h4 style={{ color: '#ff6b6b' }}>- Lisa M.</h4>
-            </div>
-            <div style={{ flex: 1, minWidth: '280px', background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.05)' }}>
-              <p style={{ fontStyle: 'italic', color: '#555', marginBottom: '20px' }}>"The real-time chat feature is amazing. I love how quickly I can connect with matches."</p>
-              <h4 style={{ color: '#ff6b6b' }}>- David K.</h4>
-            </div>
-          </div>
-        </div>
-
-        <footer style={{ background: '#1a1a2e', color: 'white', padding: '60px 20px 30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '40px', maxWidth: '1200px', margin: '0 auto' }}>
-            <div>
-              <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>🔥 Flame Connect</h3>
-              <p style={{ color: '#aaa' }}>Find your perfect match today.</p>
-              <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
-                <span style={{ fontSize: '24px', cursor: 'pointer' }}>📘</span>
-                <span style={{ fontSize: '24px', cursor: 'pointer' }}>🐦</span>
-                <span style={{ fontSize: '24px', cursor: 'pointer' }}>📷</span>
-              </div>
-            </div>
-            <div>
-              <h4>Quick Links</h4>
-              <ul style={{ listStyle: 'none', padding: 0 }}>
-                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>About Us</a></li>
-                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Success Stories</a></li>
-                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Safety Tips</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4>Legal</h4>
-              <ul style={{ listStyle: 'none', padding: 0 }}>
-                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Terms of Service</a></li>
-                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Privacy Policy</a></li>
-                <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Refund Policy</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4>Trust Badges</h4>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>SSL Secure</span>
-                <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>Verified Profiles</span>
-                <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>24/7 Support</span>
-              </div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'center', marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #333', color: '#aaa' }}>
-            <p>&copy; 2024 Flame Connect. All rights reserved.</p>
-          </div>
+        <footer style={{ background: '#1a1a2e', color: 'white', padding: '40px 20px', textAlign: 'center' }}>
+          <p>&copy; 2024 Flame Connect. All rights reserved.</p>
         </footer>
 
         {/* Login Modal */}
         {showLoginModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-              <h2 style={{ textAlign: 'center', marginBottom: '10px', color: '#333' }}>Welcome Back</h2>
-              <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>Sign in to continue your journey</p>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%' }}>
+              <h2 style={{ textAlign: 'center' }}>Welcome Back</h2>
               <form onSubmit={handleAuth}>
-                <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
-                <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', marginTop: '10px' }}>Login</button>
+                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
+                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
+                <button type="submit" style={{ width: '100%', padding: '14px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Login</button>
               </form>
-              <button onClick={() => { setShowLoginModal(false); setShowSignupModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '15px', background: 'none', border: '2px solid #ff6b6b', color: '#ff6b6b', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Create New Account</button>
-              <button onClick={() => setShowLoginModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '50px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { setShowLoginModal(false); setShowSignupModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '10px', background: 'none', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '25px', cursor: 'pointer' }}>Create Account</button>
+              <button onClick={() => setShowLoginModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Cancel</button>
               {authMessage && <p style={{ textAlign: 'center', marginTop: '15px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
             </div>
           </div>
@@ -358,17 +351,16 @@ function App() {
 
         {/* Signup Modal */}
         {showSignupModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-              <h2 style={{ textAlign: 'center', marginBottom: '10px', color: '#333' }}>Create Account</h2>
-              <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>Join Flame Connect today</p>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%' }}>
+              <h2 style={{ textAlign: 'center' }}>Create Account</h2>
               <form onSubmit={handleAuth}>
-                <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
-                <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} required />
-                <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', marginTop: '10px' }}>Sign Up</button>
+                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
+                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
+                <button type="submit" style={{ width: '100%', padding: '14px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Sign Up</button>
               </form>
-              <button onClick={() => { setShowSignupModal(false); setShowLoginModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '15px', background: 'none', border: '2px solid #ff6b6b', color: '#ff6b6b', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Already have an account? Login</button>
-              <button onClick={() => setShowSignupModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '50px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { setShowSignupModal(false); setShowLoginModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '10px', background: 'none', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '25px', cursor: 'pointer' }}>Already have an account? Login</button>
+              <button onClick={() => setShowSignupModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Cancel</button>
               {authMessage && <p style={{ textAlign: 'center', marginTop: '15px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
             </div>
           </div>
@@ -382,77 +374,75 @@ function App() {
     return (
       <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '10px' }}>💝</div>
-          <h1 style={{ color: '#ff6b6b' }}>Welcome to Flame Connect!</h1>
-          <p style={{ color: '#666' }}>Let's create your profile to find your perfect match</p>
-          <div style={{ width: '100%', background: '#f0f0f0', borderRadius: '10px', marginTop: '20px' }}>
-            <div style={{ width: '20%', height: '4px', background: '#ff6b6b', borderRadius: '10px' }}></div>
-          </div>
+          <h1 style={{ color: '#ff6b6b' }}>Complete Your Profile</h1>
+          <p>Tell others about yourself</p>
         </div>
         
-        <input type="text" placeholder="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} />
-        <input type="number" placeholder="Age" value={age} onChange={(e) => setAge(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} />
-        <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }}>
+        <input type="text" placeholder="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} />
+        <input type="number" placeholder="Age" value={age} onChange={(e) => setAge(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} />
+        <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }}>
           <option value="">Select Gender</option>
           <option value="male">Male</option>
           <option value="female">Female</option>
         </select>
-        <select value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }}>
+        <select value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }}>
           <option value="">Looking for</option>
           <option value="men">Men</option>
           <option value="women">Women</option>
           <option value="everyone">Everyone</option>
         </select>
-        <input type="text" placeholder="Location (City)" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} />
-        <textarea placeholder="Bio - Tell others about yourself..." value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', minHeight: '100px', border: '1px solid #ddd', borderRadius: '12px', fontSize: '16px' }} />
+        <input type="text" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} />
+        <textarea placeholder="Bio" value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', minHeight: '100px', border: '1px solid #ddd', borderRadius: '8px' }} />
         
         <div style={{ margin: '20px 0', textAlign: 'center' }}>
-          {photos.length > 0 && <img src={photos[0]} alt="Profile" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px' }} />}
+          {photos.length > 0 && <img src={photos[0]} alt="Profile" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />}
           <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} id="photo-upload" />
-          <label htmlFor="photo-upload" style={{ display: 'inline-block', padding: '12px 24px', background: '#4CAF50', color: 'white', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>{uploading ? 'Uploading...' : '📸 Upload Photo'}</label>
+          <label htmlFor="photo-upload" style={{ display: 'inline-block', padding: '10px 20px', background: '#4CAF50', color: 'white', borderRadius: '25px', cursor: 'pointer' }}>{uploading ? 'Uploading...' : 'Upload Photo'}</label>
         </div>
         
-        <button onClick={completeOnboarding} style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Complete Profile →</button>
+        <button onClick={completeOnboarding} style={{ width: '100%', padding: '14px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Complete Profile</button>
         {message && <p style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>{message}</p>}
       </div>
     )
   }
 
-  // PEOPLE GRID VIEW with Beautiful Empty State
+  // PEOPLE GRID VIEW
   if (view === 'people') {
     return (
       <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-          <h1 style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>🔥 Flame Connect</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h1 style={{ color: '#ff6b6b' }}>🔥 Flame Connect</h1>
           <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => setView('people')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>👥 People</button>
-            <button onClick={() => setView('inbox')} style={{ background: 'none', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', color: '#666', fontWeight: '500' }}>💬 Inbox</button>
-            <button onClick={() => setView('profile')} style={{ background: 'none', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', color: '#666', fontWeight: '500' }}>👤 Profile</button>
+            <button onClick={() => { setView('people'); fetchUsers(); }} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👥 People</button>
+            <button onClick={() => setView('inbox')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>💬 Inbox</button>
+            <button onClick={() => setView('profile')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👤 Profile</button>
           </div>
         </div>
         
         {users.length === 0 ? (
-          // Beautiful Empty State
           <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-            <div style={{ fontSize: '80px', marginBottom: '20px' }}>💕</div>
-            <h2 style={{ fontSize: '28px', color: '#333', marginBottom: '10px' }}>No users found yet</h2>
-            <p style={{ color: '#666', fontSize: '18px', marginBottom: '30px' }}>Complete your profile and check back soon!</p>
-            <button onClick={() => setView('profile')} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Complete Your Profile</button>
+            <div style={{ fontSize: '64px', marginBottom: '20px' }}>💕</div>
+            <h2>No users found yet</h2>
+            <p>Complete your profile and check back soon!</p>
+            <button onClick={() => setView('profile')} style={{ padding: '12px 24px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Complete Your Profile</button>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
             {users.map(u => (
-              <div key={u.id} onClick={() => setSelectedProfile(u)} style={{ cursor: 'pointer', background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', transition: 'transform 0.2s' }}>
+              <div key={u.id} onClick={() => setSelectedProfile(u)} style={{ cursor: 'pointer', background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
                 {u.photos && u.photos.length > 0 ? (
                   <img src={u.photos[0]} alt={u.display_name} style={{ width: '100%', height: '250px', objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ width: '100%', height: '250px', background: 'linear-gradient(135deg, #fef9f9 0%, #fff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
+                  <div style={{ width: '100%', height: '250px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
                 )}
                 <div style={{ padding: '15px' }}>
-                  <h3>{u.display_name || u.email?.split('@')[0]}, {u.age}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0 }}>{u.display_name || u.email?.split('@')[0]}, {u.age || '?'}</h3>
+                    <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: u.is_online ? '#4CAF50' : '#999' }}></span>
+                  </div>
                   <p style={{ color: '#666', fontSize: '14px' }}>📍 {u.location_city || 'Unknown'}</p>
-                  <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>{u.bio?.substring(0, 80)}...</p>
-                  <button onClick={(e) => { e.stopPropagation(); handleLike(u.id); }} style={{ width: '100%', padding: '10px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: '600' }}>❤️ Like</button>
+                  <p style={{ fontSize: '13px', color: '#666' }}>{u.bio?.substring(0, 80)}...</p>
+                  <button onClick={(e) => { e.stopPropagation(); handleLike(u.id); }} style={{ width: '100%', padding: '10px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '10px' }}>❤️ Like</button>
                 </div>
               </div>
             ))}
@@ -462,27 +452,26 @@ function App() {
     )
   }
 
-  // INBOX VIEW with Beautiful Empty State
+  // INBOX VIEW
   if (view === 'inbox') {
     return (
       <div style={{ maxWidth: '600px', margin: '20px auto', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-          <h1 style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>🔥 Flame Connect</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h1 style={{ color: '#ff6b6b' }}>🔥 Flame Connect</h1>
           <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => setView('people')} style={{ background: 'none', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', color: '#666', fontWeight: '500' }}>👥 People</button>
-            <button onClick={() => setView('inbox')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>💬 Inbox</button>
-            <button onClick={() => setView('profile')} style={{ background: 'none', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', color: '#666', fontWeight: '500' }}>👤 Profile</button>
+            <button onClick={() => setView('people')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👥 People</button>
+            <button onClick={() => setView('inbox')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>💬 Inbox</button>
+            <button onClick={() => setView('profile')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👤 Profile</button>
           </div>
         </div>
         
         <h2>Your Conversations</h2>
         {matches.length === 0 ? (
-          // Beautiful Empty State
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: '80px', marginBottom: '20px' }}>💌</div>
-            <h2 style={{ fontSize: '28px', color: '#333', marginBottom: '10px' }}>No conversations yet</h2>
-            <p style={{ color: '#666', fontSize: '18px', marginBottom: '30px' }}>Explore profiles and send a message to start chatting!</p>
-            <button onClick={() => setView('people')} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>Browse People</button>
+            <div style={{ fontSize: '64px', marginBottom: '20px' }}>💌</div>
+            <h2>No conversations yet</h2>
+            <p>Explore profiles and send a message to start chatting!</p>
+            <button onClick={() => setView('people')} style={{ padding: '12px 24px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Browse People</button>
           </div>
         ) : (
           matches.map(match => (
@@ -500,12 +489,12 @@ function App() {
   if (view === 'profile') {
     return (
       <div style={{ maxWidth: '500px', margin: '20px auto', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-          <h1 style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>🔥 Flame Connect</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h1 style={{ color: '#ff6b6b' }}>🔥 Flame Connect</h1>
           <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => setView('people')} style={{ background: 'none', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', color: '#666', fontWeight: '500' }}>👥 People</button>
-            <button onClick={() => setView('inbox')} style={{ background: 'none', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', color: '#666', fontWeight: '500' }}>💬 Inbox</button>
-            <button onClick={() => setView('profile')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '50px', cursor: 'pointer', fontWeight: '600' }}>👤 Profile</button>
+            <button onClick={() => setView('people')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👥 People</button>
+            <button onClick={() => setView('inbox')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>💬 Inbox</button>
+            <button onClick={() => setView('profile')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👤 Profile</button>
           </div>
         </div>
         
@@ -513,22 +502,22 @@ function App() {
           {photos.length > 0 ? (
             <img src={photos[0]} alt="Profile" style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', marginBottom: '15px', border: '3px solid #ff6b6b' }} />
           ) : (
-            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'linear-gradient(135deg, #fef9f9 0%, #fff 100%)', margin: '0 auto 15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
+            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#f0f0f0', margin: '0 auto 15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
           )}
           <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} id="profile-photo" />
-          <label htmlFor="profile-photo" style={{ display: 'inline-block', color: '#ff6b6b', cursor: 'pointer', marginBottom: '15px', fontSize: '14px', fontWeight: '500' }}>Change Photo</label>
+          <label htmlFor="profile-photo" style={{ display: 'inline-block', color: '#ff6b6b', cursor: 'pointer', marginBottom: '15px' }}>Change Photo</label>
           
-          <h2 style={{ fontSize: '28px', marginBottom: '5px' }}>{profile?.display_name || user?.email?.split('@')[0]}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+          <h2>{profile?.display_name || user?.email?.split('@')[0]}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#4CAF50' }}></span>
-            <span style={{ color: '#666' }}>Online</span>
-            <span style={{ color: '#666' }}>•</span>
-            <span style={{ color: '#666' }}>📍 {profile?.location_city || 'Cape Town'}</span>
+            <span>Online</span>
+            <span>•</span>
+            <span>📍 {profile?.location_city || 'Cape Town'}</span>
           </div>
-          <p style={{ color: '#666', maxWidth: '400px', margin: '0 auto' }}>{profile?.bio}</p>
+          <p>{profile?.bio}</p>
           
-          <button onClick={() => { setStep(0); setView('onboarding'); }} style={{ width: '100%', padding: '14px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', marginTop: '20px', fontWeight: '600' }}>Edit Profile</button>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '14px', background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '50px', cursor: 'pointer', marginTop: '10px', fontWeight: '500' }}>Logout</button>
+          <button onClick={() => { setStep(0); setView('onboarding'); }} style={{ width: '100%', padding: '14px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Edit Profile</button>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '14px', background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '10px' }}>Logout</button>
         </div>
       </div>
     )
@@ -539,17 +528,22 @@ function App() {
     const p = selectedProfile
     return (
       <div style={{ maxWidth: '500px', margin: '20px auto', padding: '20px' }}>
-        <button onClick={() => setSelectedProfile(null)} style={{ marginBottom: '20px', padding: '10px 20px', cursor: 'pointer', background: '#f0f0f0', border: 'none', borderRadius: '50px' }}>← Back</button>
+        <button onClick={() => setSelectedProfile(null)} style={{ marginBottom: '20px', padding: '10px 20px', cursor: 'pointer', background: '#f0f0f0', border: 'none', borderRadius: '25px' }}>← Back</button>
         <div style={{ textAlign: 'center' }}>
           {p.photos && p.photos.length > 0 ? (
             <img src={p.photos[0]} alt={p.display_name} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #ff6b6b' }} />
           ) : (
-            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#f0f0f0', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
+            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#f0f0f0', margin: '0 auto' }}>📷</div>
           )}
-          <h2 style={{ fontSize: '28px', marginBottom: '5px' }}>{p.display_name || p.email?.split('@')[0]}, {p.age}</h2>
-          <p style={{ color: '#666', marginBottom: '10px' }}>📍 {p.location_city || 'Location not set'}</p>
-          <p style={{ maxWidth: '400px', margin: '0 auto 20px' }}>{p.bio}</p>
-          <button onClick={() => handleLike(p.id)} style={{ padding: '14px 40px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' }}>❤️ Send Like</button>
+          <h2>{p.display_name || p.email?.split('@')[0]}, {p.age}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: p.is_online ? '#4CAF50' : '#999' }}></span>
+            <span>{p.is_online ? 'Online' : 'Offline'}</span>
+            <span>•</span>
+            <span>📍 {p.location_city || 'Unknown'}</span>
+          </div>
+          <p>{p.bio}</p>
+          <button onClick={() => handleLike(p.id)} style={{ padding: '12px 30px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>❤️ Send Like</button>
         </div>
       </div>
     )
