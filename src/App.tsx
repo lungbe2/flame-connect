@@ -1,555 +1,841 @@
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from './lib/supabase'
+import React, { useEffect, useMemo, useState } from 'react';
+import { supabase } from './lib/supabase';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import Onboarding from './components/Onboarding';
+import PeopleGrid from './components/PeopleGrid.tsx';
+import Inbox from './components/Inbox';
+import Profile from './components/Profile';
+import FloatingChatDock from './components/FloatingChatDock';
+import ChatPage from './pages/ChatPage';
+import MatchPage from './pages/MatchPage';
+import SettingsPage from './pages/SettingsPage';
+import NotificationsPage from './pages/NotificationsPage';
+import ExplorePage from './pages/ExplorePage';
+import HelpPage from './pages/HelpPage';
+import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
+import NotFoundPage from './pages/NotFoundPage';
+import UpgradePage from './pages/UpgradePage';
+import LandingPage from './components/LandingPage';
+import AppShell from './components/AppShell';
+import PeopleHub from './components/PeopleHub';
+import { VIEW_KEYS } from './config/navigation';
+import { DEMO_PROFILES } from './config/demoProfiles';
+
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
+const toRadians = (value: number) => (value * Math.PI) / 180;
+
+const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(earthRadiusKm * c);
+};
+
+const calculateProfileCompletionScore = (profile: any) => {
+  const checks = [
+    !!profile?.display_name,
+    !!profile?.age,
+    !!profile?.gender,
+    !!profile?.looking_for,
+    !!profile?.mood,
+    !!profile?.bio && profile.bio.length >= 20,
+    !!profile?.location_city || !!profile?.location,
+    Array.isArray(profile?.photos) && profile.photos.length > 0
+  ];
+  const completed = checks.filter(Boolean).length;
+  return Math.round((completed / checks.length) * 100);
+};
+
+const computeDiscoveryScore = (viewer: any, candidate: any, distanceKm: number | null) => {
+  let score = 0;
+
+  if (candidate?.is_online) {
+    score += 20;
+  }
+  if (candidate?.mood && viewer?.mood && candidate.mood === viewer.mood) {
+    score += 25;
+  }
+  if (candidate?.looking_for && viewer?.looking_for && candidate.looking_for === viewer.looking_for) {
+    score += 15;
+  }
+  if (typeof distanceKm === 'number') {
+    score += Math.max(0, 20 - Math.min(distanceKm, 20));
+  }
+  score += Math.round((candidate?.profile_completion_score || 0) * 0.2);
+
+  return score;
+};
+
+const isRecentlyOnline = (record: any) => {
+  const timestamp = record?.last_seen || record?.last_active;
+  if (!timestamp) {
+    return !!record?.is_online;
+  }
+  const elapsed = Date.now() - new Date(timestamp).getTime();
+  return elapsed <= ONLINE_WINDOW_MS && !!record?.is_online;
+};
+
+const sortUserPair = (a: string, b: string) => [a, b].sort();
+const isDemoId = (id?: string) => !!id && id.startsWith('demo-');
+const pickMixedDemoProfiles = (count: number) => {
+  const women = DEMO_PROFILES.filter((entry) => entry.gender === 'female');
+  const men = DEMO_PROFILES.filter((entry) => entry.gender === 'male');
+  const mixed: any[] = [];
+  const max = Math.max(women.length, men.length);
+  for (let i = 0; i < max; i += 1) {
+    if (women[i]) mixed.push(women[i]);
+    if (men[i]) mixed.push(men[i]);
+  }
+  return mixed.slice(0, count);
+};
 
 function App() {
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [step, setStep] = useState(0)
-  const [displayName, setDisplayName] = useState('')
-  const [age, setAge] = useState('')
-  const [gender, setGender] = useState('')
-  const [lookingFor, setLookingFor] = useState('')
-  const [bio, setBio] = useState('')
-  const [location, setLocation] = useState('')
-  const [photos, setPhotos] = useState([])
-  const [uploading, setUploading] = useState(false)
-  const [view, setView] = useState('landing')
-  const [users, setUsers] = useState([])
-  const [matches, setMatches] = useState([])
-  const [selectedProfile, setSelectedProfile] = useState(null)
-  const [showLoginModal, setShowLoginModal] = useState(false)
-  const [showSignupModal, setShowSignupModal] = useState(false)
-  
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isLogin, setIsLogin] = useState(true)
-  const [authMessage, setAuthMessage] = useState('')
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [currentView, setCurrentView] = useState(VIEW_KEYS.LANDING);
+  const [users, setUsers] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [likedProfiles, setLikedProfiles] = useState<any[]>([]);
+  const [chatRequests, setChatRequests] = useState<any[]>([]);
+  const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [showMatchModal, setShowMatchModal] = useState<any>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
 
-  // ========== ONLINE PRESENCE FUNCTIONS ==========
-  
-  // Update online status in database
-  const updateOnlineStatus = useCallback(async (isOnline) => {
-    if (!user) return
-    console.log(`Setting online status to: ${isOnline} for user ${user.id}`)
-    await supabase
-      .from('profiles')
-      .update({ 
-        is_online: isOnline, 
-        last_seen: new Date().toISOString() 
-      })
-      .eq('id', user.id)
-  }, [user])
+  const [displayName, setDisplayName] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
+  const [lookingFor, setLookingFor] = useState('');
+  const [mood, setMood] = useState('');
+  const [bio, setBio] = useState('');
+  const [location, setLocation] = useState('');
+  const [message, setMessage] = useState('');
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Heartbeat to keep user online while active
-  const startHeartbeat = useCallback(() => {
-    const interval = setInterval(() => {
-      if (user) {
-        supabase
-          .from('profiles')
-          .update({ last_seen: new Date().toISOString() })
-          .eq('id', user.id)
-          .then(() => console.log('Heartbeat sent'))
-      }
-    }, 30000) // Every 30 seconds
-    return () => clearInterval(interval)
-  }, [user])
-
-  // Subscribe to online status changes of other users
-  const subscribeToOnlineStatus = useCallback(() => {
-    const channel = supabase
-      .channel('online-status')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'profiles',
-        filter: `is_online=eq.true`
-      }, (payload) => {
-        console.log('Online status update:', payload.new.display_name)
-        // Refresh users list when someone comes online/offline
-        fetchUsers()
-      })
-      .subscribe()
-    return () => supabase.removeChannel(channel)
-  }, [])
-
-  // ========== MAIN FUNCTIONS ==========
+  const myCoordinates = useMemo(() => {
+    if (coords) {
+      return coords;
+    }
+    if (profile?.latitude && profile?.longitude) {
+      return { lat: profile.latitude, lng: profile.longitude };
+    }
+    return null;
+  }, [coords, profile]);
 
   useEffect(() => {
-    checkUser()
-    
-    // Handle tab close - mark user offline
-    const handleBeforeUnload = async () => {
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ is_online: false, last_seen: new Date().toISOString() })
-          .eq('id', user.id)
-      }
+    checkUser();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      return;
     }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [])
+
+    const setPresence = async (isOnline: boolean) => {
+      await supabase.from('profiles').update({ is_online: isOnline, last_seen: new Date().toISOString() }).eq('id', user.id);
+    };
+
+    setPresence(true);
+    const heartbeat = setInterval(() => setPresence(true), 30000);
+    const onVisibility = () => setPresence(!document.hidden);
+    const onUnload = () => {
+      void setPresence(false);
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onUnload);
+
+    return () => {
+      clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onUnload);
+      void setPresence(false);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    fetchUsers(user.id);
+    fetchMatches(user.id);
+    fetchLikedProfiles(user.id);
+    fetchChatRequests(user.id);
+    fetchUnreadCounts(user.id);
+    const timer = setInterval(() => {
+      fetchUsers(user.id);
+      fetchMatches(user.id);
+      fetchLikedProfiles(user.id);
+      fetchChatRequests(user.id);
+      fetchUnreadCounts(user.id);
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [user?.id, myCoordinates?.lat, myCoordinates?.lng]);
 
   const checkUser = async () => {
-    const { data } = await supabase.auth.getSession()
-    const currentUser = data?.session?.user || null
-    setUser(currentUser)
-    
+    const { data } = await supabase.auth.getSession();
+    const currentUser = data?.session?.user || null;
+    setUser(currentUser);
+
     if (currentUser) {
-      // Mark user online when they log in
-      await updateOnlineStatus(true)
-      
-      const { data: profileData } = await supabase
+      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+
+      if (profileData && profileData.age) {
+        setProfile(profileData);
+        setPhotos(profileData.photos || []);
+        setDisplayName(profileData.display_name || '');
+        setAge(profileData.age || '');
+        setGender(profileData.gender || '');
+        setLookingFor(profileData.looking_for || '');
+        setMood(profileData.mood || '');
+        setBio(profileData.bio || '');
+        setLocation(profileData.location_city || profileData.location || '');
+        if (profileData.latitude && profileData.longitude) {
+          setCoords({ lat: profileData.latitude, lng: profileData.longitude });
+        }
+        await fetchUsers(currentUser.id);
+        await fetchMatches(currentUser.id);
+        await fetchLikedProfiles(currentUser.id);
+        await fetchUnreadCounts(currentUser.id);
+        setCurrentView(VIEW_KEYS.PEOPLE);
+      } else {
+        setShowOnboarding(true);
+        setCurrentView(VIEW_KEYS.ONBOARDING);
+      }
+    }
+
+    setLoading(false);
+  };
+
+  const fetchMatches = async (userId: string) => {
+    const { data: rawMatches, error: rawError } = await supabase
+      .from('matches')
+      .select('*')
+      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+      .eq('status', 'accepted');
+
+    if (rawError || !rawMatches || rawMatches.length === 0) {
+      setMatches([]);
+      return;
+    }
+
+    const profileIds = Array.from(
+      new Set(
+        rawMatches.map((match) => (match.user_a === userId ? match.user_b : match.user_a)).filter(Boolean)
+      )
+    );
+
+    const { data: profileRows } = await supabase.from('profiles').select('*').in('id', profileIds);
+    const profileMap = new Map((profileRows || []).map((row) => [row.id, row]));
+
+    const dedupedByUser = new Map<string, any>();
+    rawMatches.forEach((match) => {
+      const otherId = match.user_a === userId ? match.user_b : match.user_a;
+      if (!otherId) {
+        return;
+      }
+      const existing = dedupedByUser.get(otherId);
+      const existingTs = existing?.created_at ? new Date(existing.created_at).getTime() : 0;
+      const currentTs = match?.created_at ? new Date(match.created_at).getTime() : 0;
+      if (!existing || currentTs >= existingTs) {
+        dedupedByUser.set(otherId, match);
+      }
+    });
+
+    const fallbackProfiles = Array.from(dedupedByUser.values())
+      .map((match) => {
+        const otherId = match.user_a === userId ? match.user_b : match.user_a;
+        const otherProfile = profileMap.get(otherId);
+        if (!otherProfile || otherProfile.is_blocked) {
+          return null;
+        }
+        return {
+          ...otherProfile,
+          match_id: match.id,
+          matched_at: match.updated_at || match.created_at,
+          is_online: isRecentlyOnline(otherProfile)
+        };
+      })
+      .filter(Boolean);
+
+    setMatches(fallbackProfiles as any[]);
+  };
+
+  const fetchChatRequests = async (userId: string) => {
+    const { data: pendingMatches, error } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('status', 'pending')
+      .eq('user_b', userId);
+
+    if (error || !pendingMatches || pendingMatches.length === 0) {
+      setChatRequests([]);
+      return;
+    }
+
+    const requesterIds = Array.from(new Set(pendingMatches.map((match) => match.user_a).filter(Boolean)));
+    const { data: requestProfiles } = await supabase.from('profiles').select('*').in('id', requesterIds);
+    const profileMap = new Map((requestProfiles || []).map((profile) => [profile.id, profile]));
+
+    const rows = pendingMatches
+      .map((match) => {
+        const profile = profileMap.get(match.user_a);
+        if (!profile || profile.is_blocked) {
+          return null;
+        }
+        return {
+          ...profile,
+          match_id: match.id,
+          requested_at: match.created_at,
+          is_online: isRecentlyOnline(profile)
+        };
+      })
+      .filter(Boolean);
+
+    setChatRequests(rows as any[]);
+  };
+
+  const fetchUnreadCounts = async (userId: string) => {
+    const { data: matchRows, error: matchError } = await supabase
+      .from('matches')
+      .select('id')
+      .or(`user_a.eq.${userId},user_b.eq.${userId}`);
+
+    if (matchError || !matchRows || matchRows.length === 0) {
+      setUnreadByUser({});
+      return;
+    }
+
+    const matchIds = matchRows.map((row) => row.id).filter(Boolean);
+    if (matchIds.length === 0) {
+      setUnreadByUser({});
+      return;
+    }
+
+    const { data: messageRows, error: messagesError } = await supabase
+      .from('messages')
+      .select('*')
+      .in('match_id', matchIds)
+      .neq('sender_id', userId);
+
+    if (messagesError || !messageRows) {
+      setUnreadByUser({});
+      return;
+    }
+
+    const counts: Record<string, number> = {};
+    messageRows.forEach((message: any) => {
+      const hasReadAt = Object.prototype.hasOwnProperty.call(message, 'read_at');
+      const hasIsRead = Object.prototype.hasOwnProperty.call(message, 'is_read');
+      const isUnread = hasReadAt ? !message.read_at : hasIsRead ? !message.is_read : false;
+      if (!isUnread || !message?.sender_id) {
+        return;
+      }
+      counts[message.sender_id] = (counts[message.sender_id] || 0) + 1;
+    });
+    setUnreadByUser(counts);
+  };
+
+  const fetchLikedProfiles = async (userId: string) => {
+    const { data: likedRows, error: likesError } = await supabase
+      .from('likes')
+      .select('liked_id,created_at')
+      .eq('liker_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (likesError || !likedRows || likedRows.length === 0) {
+      setLikedProfiles([]);
+      return;
+    }
+
+    const likedIds = Array.from(new Set(likedRows.map((row) => row.liked_id).filter(Boolean)));
+    const { data: profileRows } = await supabase.from('profiles').select('*').in('id', likedIds);
+    const profileMap = new Map((profileRows || []).map((profile) => [profile.id, profile]));
+
+    const rows = likedRows
+      .map((row) => {
+        const profile = profileMap.get(row.liked_id);
+        if (!profile || profile.is_blocked) {
+          return null;
+        }
+        return {
+          ...profile,
+          liked_at: row.created_at,
+          is_online: isRecentlyOnline(profile)
+        };
+      })
+      .filter(Boolean);
+
+    setLikedProfiles(rows as any[]);
+  };
+
+  const fetchUsers = async (currentUserId: string) => {
+    const [profilesResult, likesResult, matchesResult] = await Promise.all([
+      supabase
         .from('profiles')
         .select('*')
-        .eq('id', currentUser.id)
-        .single()
-      
-      if (profileData && profileData.age) {
-        setProfile(profileData)
-        setPhotos(profileData.photos || [])
-        setDisplayName(profileData.display_name || '')
-        setAge(profileData.age || '')
-        setGender(profileData.gender || '')
-        setLookingFor(profileData.looking_for || '')
-        setBio(profileData.bio || '')
-        setLocation(profileData.location_city || '')
-        setStep(5)
-        await fetchUsers()
-        await fetchMatches(currentUser.id)
-        setView('people')
+        .neq('id', currentUserId)
+        .or('is_blocked.is.null,is_blocked.eq.false')
+        .order('last_seen', { ascending: false }),
+      supabase.from('likes').select('liked_id').eq('liker_id', currentUserId),
+      supabase.from('matches').select('user_a,user_b').or(`user_a.eq.${currentUserId},user_b.eq.${currentUserId}`)
+    ]);
+
+    const data = profilesResult.data;
+    const error = profilesResult.error;
+    if (!error && data) {
+      const likedIds = new Set((likesResult.data || []).map((row: any) => row.liked_id).filter(Boolean));
+      const matchedIds = new Set(
+        (matchesResult.data || [])
+          .map((row: any) => (row.user_a === currentUserId ? row.user_b : row.user_a))
+          .filter(Boolean)
+      );
+      const excludedIds = new Set<string>([...likedIds, ...matchedIds, currentUserId]);
+
+      const filteredProfiles = data.filter((entry) => !excludedIds.has(entry.id));
+      const withPresenceAndDistance = filteredProfiles.map((entry) => {
+        const distance =
+          myCoordinates && entry.latitude && entry.longitude
+            ? calculateDistanceKm(myCoordinates.lat, myCoordinates.lng, entry.latitude, entry.longitude)
+            : null;
+        const profileCompletionScore = calculateProfileCompletionScore(entry);
+        return {
+          ...entry,
+          is_online: isRecentlyOnline(entry),
+          distance_km: distance,
+          profile_completion_score: profileCompletionScore
+        };
+      });
+      const ranked = withPresenceAndDistance
+        .map((entry) => ({
+          ...entry,
+          discovery_score: computeDiscoveryScore(profile, entry, entry.distance_km)
+        }))
+        .sort((a, b) => b.discovery_score - a.discovery_score);
+
+      const minTarget = 8;
+      if (ranked.length >= minTarget) {
+        setUsers(ranked);
+        return;
+      }
+
+      const existingIds = new Set(ranked.map((entry) => entry.id));
+      const demoRows = pickMixedDemoProfiles(12).filter((entry) => !existingIds.has(entry.id)).map((entry, index) => ({
+        ...entry,
+        is_demo: true,
+        is_online: index % 2 === 0,
+        last_seen: new Date(Date.now() - index * 12 * 60 * 1000).toISOString(),
+        distance_km: 5 + index * 3,
+        profile_completion_score: 100,
+        discovery_score: 35 - index
+      }));
+
+      const padded = [...ranked, ...demoRows].slice(0, minTarget);
+      setUsers(padded);
+      return;
+    }
+    const demoOnly = pickMixedDemoProfiles(8).map((entry, index) => ({
+      ...entry,
+      is_demo: true,
+      is_online: index % 2 === 0,
+      last_seen: new Date(Date.now() - index * 12 * 60 * 1000).toISOString(),
+      distance_km: 5 + index * 3,
+      profile_completion_score: 100,
+      discovery_score: 30 - index
+    }));
+    setUsers(demoOnly);
+  };
+
+  const handleLike = async (likedUserId: string) => {
+    if (!user) {
+      return;
+    }
+    if (isDemoId(likedUserId)) {
+      setUsers((prev) => prev.filter((entry) => entry.id !== likedUserId));
+      return;
+    }
+
+    const { error: likeError } = await supabase
+      .from('likes')
+      .upsert(
+        { liker_id: user.id, liked_id: likedUserId },
+        { onConflict: 'liker_id,liked_id', ignoreDuplicates: true }
+      );
+
+    if (likeError) {
+      console.error('Failed to register like:', likeError);
+      return;
+    }
+
+    const { data } = await supabase.from('likes').select('*').eq('liker_id', likedUserId).eq('liked_id', user.id);
+
+    if (data && data.length > 0) {
+      const { data: existingMatches } = await supabase
+        .from('matches')
+        .select('*')
+        .or(`and(user_a.eq.${user.id},user_b.eq.${likedUserId}),and(user_a.eq.${likedUserId},user_b.eq.${user.id})`)
+        .order('created_at', { ascending: false });
+
+      const existingMatch = existingMatches && existingMatches.length > 0 ? existingMatches[0] : null;
+      if (existingMatch) {
+        if (existingMatch.status !== 'accepted') {
+          await supabase.from('matches').update({ status: 'accepted' }).eq('id', existingMatch.id);
+        }
       } else {
-        setStep(0)
-        setView('onboarding')
+        const sorted = sortUserPair(user.id, likedUserId);
+        const { error: insertError } = await supabase.from('matches').insert({ user_a: sorted[0], user_b: sorted[1], status: 'accepted' });
+        if (insertError && insertError.code !== '23505') {
+          console.error('Unable to create accepted match:', insertError);
+        }
+      }
+
+      const matchedProfile = users.find((entry) => entry.id === likedUserId) || null;
+      if (matchedProfile) {
+        setShowMatchModal(matchedProfile);
+      }
+      await fetchMatches(user.id);
+    }
+
+    // Give immediate feedback in the grid even when no mutual match yet.
+    setUsers((prev) => prev.filter((entry) => entry.id !== likedUserId));
+    void fetchLikedProfiles(user.id);
+  };
+
+  const openDirectChat = async (targetUser: any) => {
+    if (!user || !targetUser?.id) {
+      return;
+    }
+    if (isDemoId(targetUser.id)) {
+      window.alert('This is a demo profile for UI testing only.');
+      return;
+    }
+
+    const { data: existingMatches } = await supabase
+      .from('matches')
+      .select('*')
+      .or(`and(user_a.eq.${user.id},user_b.eq.${targetUser.id}),and(user_a.eq.${targetUser.id},user_b.eq.${user.id})`)
+      .order('created_at', { ascending: false });
+
+    let matchRow = existingMatches && existingMatches.length > 0 ? existingMatches[0] : null;
+    if (!matchRow) {
+      const sorted = sortUserPair(user.id, targetUser.id);
+      const { data: insertedMatch, error } = await supabase
+        .from('matches')
+        .insert({ user_a: sorted[0], user_b: sorted[1], status: 'pending' })
+        .select('*')
+        .single();
+
+      if (error && error.code !== '23505') {
+        console.error('Unable to create chat request:', error);
+        return;
+      }
+
+      if (insertedMatch) {
+        matchRow = insertedMatch;
+      } else {
+        const { data: retryMatches } = await supabase
+          .from('matches')
+          .select('*')
+          .or(`and(user_a.eq.${user.id},user_b.eq.${targetUser.id}),and(user_a.eq.${targetUser.id},user_b.eq.${user.id})`)
+          .order('created_at', { ascending: false });
+        matchRow = retryMatches && retryMatches.length > 0 ? retryMatches[0] : null;
       }
     }
-    setLoading(false)
-  }
 
-  const fetchUsers = async () => {
-    console.log('Fetching users...')
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .neq('id', user?.id)
-      .order('is_online', { ascending: false }) // Online users first
-      .limit(50)
-    
-    if (!error && data) {
-      console.log(`Found ${data.length} users`)
-      setUsers(data)
-    } else if (error) {
-      console.error('Error fetching users:', error)
+    if (!matchRow) {
+      console.error('Unable to find or create chat request for users:', user.id, targetUser.id);
+      return;
     }
-  }
 
-  const fetchMatches = async (userId) => {
-    const { data } = await supabase
-      .from('matches')
-      .select('*, profiles!matches_user_a_fkey(*), profiles!matches_user_b_fkey(*)')
-      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
-      .eq('status', 'accepted')
-    
-    if (data) {
-      const matchProfiles = data.map(match => {
-        return match.user_a === userId ? match.profiles_user_b_fkey : match.profiles_user_a_fkey
-      })
-      setMatches(matchProfiles)
-    }
-  }
+    setSelectedMatch({
+      ...targetUser,
+      match_id: matchRow.id,
+      is_online: isRecentlyOnline(targetUser)
+    });
+    setCurrentView(VIEW_KEYS.INBOX);
+  };
 
-  const handleLike = async (likedUserId) => {
-    await supabase.from('likes').insert({ liker_id: user.id, liked_id: likedUserId })
-    const { data } = await supabase
-      .from('likes')
-      .select('*')
-      .eq('liker_id', likedUserId)
-      .eq('liked_id', user.id)
-    
-    if (data && data.length > 0) {
-      await supabase.from('matches').insert({ user_a: user.id, user_b: likedUserId, status: 'accepted' })
-      alert('🎉 It\'s a match! 🎉')
-      await fetchMatches(user.id)
+  const uploadPhoto = async (file: File | undefined) => {
+    if (!file || !user) {
+      return;
     }
-  }
 
-  const uploadPhoto = async (file) => {
-    if (!user) return null
-    setUploading(true)
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}.${fileExt}`
-    const filePath = `${user.id}/${fileName}`
-    
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from('profile-photos')
-        .upload(filePath, file)
-      if (uploadError) throw uploadError
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('profile-photos')
-        .getPublicUrl(filePath)
-      
-      const updatedPhotos = [publicUrl]
-      setPhotos(updatedPhotos)
-      await supabase.from('profiles').update({ photos: updatedPhotos }).eq('id', user.id)
-      setMessage('Photo uploaded!')
-      return publicUrl
-    } catch (error) {
-      console.error('Upload error:', error)
-      setMessage('Failed to upload photo.')
-      return null
-    } finally {
-      setUploading(false)
-    }
-  }
+    setUploading(true);
+    const fileName = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
+    const { error } = await supabase.storage.from('profile-photos').upload(fileName, file);
 
-  const handleFileSelect = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setMessage('Please select an image file.')
-      return
+    if (!error) {
+      const {
+        data: { publicUrl }
+      } = supabase.storage.from('profile-photos').getPublicUrl(fileName);
+      setPhotos([publicUrl]);
+      setMessage('Photo uploaded.');
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setMessage('Image must be less than 5MB.')
-      return
+
+    setUploading(false);
+  };
+
+  const useCurrentLocation = async () => {
+    if (!navigator.geolocation || !user) {
+      setMessage('Geolocation is not available in this browser.');
+      return;
     }
-    await uploadPhoto(file)
-  }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const nextCoords = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setCoords(nextCoords);
+        await supabase
+          .from('profiles')
+          .update({
+            latitude: nextCoords.lat,
+            longitude: nextCoords.lng,
+            last_seen: new Date().toISOString()
+          })
+          .eq('id', user.id);
+        setMessage('Location updated. Distance matching is now enabled.');
+      },
+      () => {
+        setMessage('Unable to access your location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const completeOnboarding = async () => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        display_name: displayName,
-        age: parseInt(age),
-        gender,
-        looking_for: lookingFor,
-        bio,
-        location_city: location,
-        photos,
-        is_online: true,
-        last_seen: new Date().toISOString()
-      })
-      .eq('id', user.id)
-    
-    if (error) {
-      setMessage(error.message)
-    } else {
-      setStep(5)
-      await checkUser()
+    if (!user) {
+      return;
     }
-  }
 
-  const handleAuth = async (e) => {
-    e.preventDefault()
-    setAuthMessage('')
-    
-    if (isLogin) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        setAuthMessage(error.message)
-      } else {
-        setAuthMessage('Logged in!')
-        setShowLoginModal(false)
-        // Mark user online
-        if (data.user) {
-          await supabase
-            .from('profiles')
-            .update({ is_online: true, last_seen: new Date().toISOString() })
-            .eq('id', data.user.id)
-        }
-        setTimeout(() => checkUser(), 500)
-      }
-    } else {
-      const { error } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          data: { display_name: displayName || email.split('@')[0] }
-        }
-      })
-      if (error) {
-        setAuthMessage(error.message)
-      } else {
-        setAuthMessage('Check your email to verify!')
-        setTimeout(() => setShowSignupModal(false), 2000)
-      }
+    const mandatoryMissing: string[] = [];
+    if (!displayName.trim()) mandatoryMissing.push('display name');
+    if (!age || Number.parseInt(age, 10) < 18) mandatoryMissing.push('valid age');
+    if (!gender) mandatoryMissing.push('gender');
+    if (!lookingFor) mandatoryMissing.push('looking for');
+    if (!mood) mandatoryMissing.push('mood');
+    if (!bio || bio.trim().length < 20) mandatoryMissing.push('bio (20+ chars)');
+    if (!location.trim()) mandatoryMissing.push('location');
+    if (!photos || photos.length === 0) mandatoryMissing.push('at least 1 photo');
+
+    if (mandatoryMissing.length > 0) {
+      setMessage(`Complete required fields: ${mandatoryMissing.join(', ')}`);
+      return;
     }
-  }
+
+    const payload: any = {
+      display_name: displayName,
+      age: parseInt(age, 10),
+      gender,
+      looking_for: lookingFor,
+      mood,
+      bio,
+      location_city: location,
+      photos
+    };
+
+    if (coords) {
+      payload.latitude = coords.lat;
+      payload.longitude = coords.lng;
+    }
+
+    const { error } = await supabase.from('profiles').update(payload).eq('id', user.id);
+
+    if (!error) {
+      setShowOnboarding(false);
+      await checkUser();
+    }
+  };
 
   const handleLogout = async () => {
-    // Mark user offline before logging out
     if (user) {
-      await supabase
-        .from('profiles')
-        .update({ is_online: false, last_seen: new Date().toISOString() })
-        .eq('id', user.id)
+      await supabase.from('profiles').update({ is_online: false, last_seen: new Date().toISOString() }).eq('id', user.id);
     }
-    await supabase.auth.signOut()
-    setUser(null)
-    setProfile(null)
-    setView('landing')
-    setShowLoginModal(false)
-    setShowSignupModal(false)
-  }
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
+    setCurrentView(VIEW_KEYS.LANDING);
+  };
 
-  const [message, setMessage] = useState('')
+  const navigateTo = (view: string) => {
+    setCurrentView(view);
+  };
+
+  useEffect(() => {
+    const titleByView: Record<string, string> = {
+      [VIEW_KEYS.LANDING]: 'Flame Connect - Meet Real Singles Near You',
+      [VIEW_KEYS.PEOPLE]: 'Discover People - Flame Connect',
+      [VIEW_KEYS.INBOX]: 'Inbox - Flame Connect',
+      [VIEW_KEYS.PROFILE]: 'Your Profile - Flame Connect'
+    };
+    document.title = titleByView[currentView] || 'Flame Connect';
+
+    const description =
+      currentView === VIEW_KEYS.PEOPLE
+        ? 'Discover nearby singles, match by mood and intent, and start real conversations on Flame Connect.'
+        : 'Flame Connect helps you discover singles, match by intent, and chat in real time.';
+    let tag = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    if (!tag) {
+      tag = document.createElement('meta');
+      tag.name = 'description';
+      document.head.appendChild(tag);
+    }
+    tag.content = description;
+  }, [currentView]);
+
+  const mainNav = (activeView: string) => [
+    { key: VIEW_KEYS.PEOPLE, label: 'People', active: activeView === VIEW_KEYS.PEOPLE, onClick: () => setCurrentView(VIEW_KEYS.PEOPLE) },
+    {
+      key: VIEW_KEYS.INBOX,
+      label: 'Inbox',
+      badge: chatRequests.length + Object.values(unreadByUser).reduce((sum, value) => sum + value, 0),
+      active: activeView === VIEW_KEYS.INBOX,
+      onClick: () => setCurrentView(VIEW_KEYS.INBOX)
+    },
+    { key: VIEW_KEYS.PROFILE, label: 'Profile', active: activeView === VIEW_KEYS.PROFILE, onClick: () => setCurrentView(VIEW_KEYS.PROFILE) }
+  ];
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>
+    return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>;
   }
 
-  // LANDING PAGE
-  if (view === 'landing' && !user) {
+  const dockEligibleViews = [VIEW_KEYS.PEOPLE, VIEW_KEYS.INBOX, VIEW_KEYS.PROFILE, VIEW_KEYS.SETTINGS, VIEW_KEYS.NOTIFICATIONS, VIEW_KEYS.EXPLORE, VIEW_KEYS.HELP, VIEW_KEYS.TERMS, VIEW_KEYS.PRIVACY, VIEW_KEYS.UPGRADE];
+  const shouldShowFloatingDock = !!user && dockEligibleViews.includes(currentView as any);
+
+  const wrapWithDock = (content: React.ReactNode) => (
+    <>
+      {content}
+      {shouldShowFloatingDock && (
+        <FloatingChatDock
+          onlineUsers={users.filter((entry) => entry.is_online)}
+          chatRequests={chatRequests}
+          ongoingChats={matches}
+          onOpenChat={openDirectChat}
+        />
+      )}
+    </>
+  );
+
+  if (showMatchModal) {
     return (
-      <div style={{ fontFamily: 'Inter, sans-serif' }}>
-        <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h1 style={{ color: '#ff6b6b', margin: 0 }}>🔥 Flame Connect</h1>
-          <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
-            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Home</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Features</a>
-            <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Success Stories</a>
-            <button onClick={() => setShowLoginModal(true)} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 28px', borderRadius: '25px', cursor: 'pointer' }}>Login</button>
-            <button onClick={() => setShowSignupModal(true)} style={{ background: 'transparent', color: '#ff6b6b', border: '2px solid #ff6b6b', padding: '10px 28px', borderRadius: '25px', cursor: 'pointer' }}>Sign Up</button>
-          </div>
-        </nav>
-
-        <div style={{ 
-          background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', 
-          color: 'white', 
-          textAlign: 'center', 
-          padding: '100px 20px'
-        }}>
-          <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>Find Your Perfect Match 🔥</h1>
-          <p style={{ fontSize: '20px', marginBottom: '30px' }}>Join thousands of singles looking for meaningful connections.</p>
-          <button onClick={() => setShowSignupModal(true)} style={{ background: 'white', color: '#ff6b6b', border: 'none', padding: '15px 40px', fontSize: '18px', borderRadius: '50px', cursor: 'pointer' }}>Get Started →</button>
-        </div>
-
-        <footer style={{ background: '#1a1a2e', color: 'white', padding: '40px 20px', textAlign: 'center' }}>
-          <p>&copy; 2024 Flame Connect. All rights reserved.</p>
-        </footer>
-
-        {/* Login Modal */}
-        {showLoginModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%' }}>
-              <h2 style={{ textAlign: 'center' }}>Welcome Back</h2>
-              <form onSubmit={handleAuth}>
-                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <button type="submit" style={{ width: '100%', padding: '14px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Login</button>
-              </form>
-              <button onClick={() => { setShowLoginModal(false); setShowSignupModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '10px', background: 'none', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '25px', cursor: 'pointer' }}>Create Account</button>
-              <button onClick={() => setShowLoginModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Cancel</button>
-              {authMessage && <p style={{ textAlign: 'center', marginTop: '15px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Signup Modal */}
-        {showSignupModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '450px', width: '90%' }}>
-              <h2 style={{ textAlign: 'center' }}>Create Account</h2>
-              <form onSubmit={handleAuth}>
-                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} required />
-                <button type="submit" style={{ width: '100%', padding: '14px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Sign Up</button>
-              </form>
-              <button onClick={() => { setShowSignupModal(false); setShowLoginModal(true); }} style={{ width: '100%', padding: '14px', marginTop: '10px', background: 'none', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '25px', cursor: 'pointer' }}>Already have an account? Login</button>
-              <button onClick={() => setShowSignupModal(false)} style={{ width: '100%', padding: '12px', marginTop: '10px', background: '#f0f0f0', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Cancel</button>
-              {authMessage && <p style={{ textAlign: 'center', marginTop: '15px', color: authMessage.includes('error') ? 'red' : 'green' }}>{authMessage}</p>}
-            </div>
-          </div>
-        )}
-      </div>
-    )
+      <>
+        {currentView === VIEW_KEYS.PEOPLE && <PeopleGrid users={users} onLike={handleLike} onSelectProfile={() => {}} />}
+        <MatchPage
+          match={showMatchModal}
+          onSendMessage={() => {
+            setShowMatchModal(null);
+            setCurrentView(VIEW_KEYS.INBOX);
+          }}
+          onKeepSwiping={() => setShowMatchModal(null)}
+        />
+      </>
+    );
   }
 
-  // ONBOARDING FORM
-  if (view === 'onboarding' || step < 5) {
-    return (
-      <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1 style={{ color: '#ff6b6b' }}>Complete Your Profile</h1>
-          <p>Tell others about yourself</p>
-        </div>
-        
-        <input type="text" placeholder="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} />
-        <input type="number" placeholder="Age" value={age} onChange={(e) => setAge(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} />
-        <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }}>
-          <option value="">Select Gender</option>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-        </select>
-        <select value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }}>
-          <option value="">Looking for</option>
-          <option value="men">Men</option>
-          <option value="women">Women</option>
-          <option value="everyone">Everyone</option>
-        </select>
-        <input type="text" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', border: '1px solid #ddd', borderRadius: '8px' }} />
-        <textarea placeholder="Bio" value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: '14px', margin: '10px 0', minHeight: '100px', border: '1px solid #ddd', borderRadius: '8px' }} />
-        
-        <div style={{ margin: '20px 0', textAlign: 'center' }}>
-          {photos.length > 0 && <img src={photos[0]} alt="Profile" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />}
-          <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} id="photo-upload" />
-          <label htmlFor="photo-upload" style={{ display: 'inline-block', padding: '10px 20px', background: '#4CAF50', color: 'white', borderRadius: '25px', cursor: 'pointer' }}>{uploading ? 'Uploading...' : 'Upload Photo'}</label>
-        </div>
-        
-        <button onClick={completeOnboarding} style={{ width: '100%', padding: '14px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer' }}>Complete Profile</button>
-        {message && <p style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>{message}</p>}
-      </div>
-    )
-  }
-
-  // PEOPLE GRID VIEW
-  if (view === 'people') {
-    return (
-      <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={{ color: '#ff6b6b' }}>🔥 Flame Connect</h1>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => { setView('people'); fetchUsers(); }} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👥 People</button>
-            <button onClick={() => setView('inbox')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>💬 Inbox</button>
-            <button onClick={() => setView('profile')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👤 Profile</button>
-          </div>
-        </div>
-        
-        {users.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-            <div style={{ fontSize: '64px', marginBottom: '20px' }}>💕</div>
-            <h2>No users found yet</h2>
-            <p>Complete your profile and check back soon!</p>
-            <button onClick={() => setView('profile')} style={{ padding: '12px 24px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Complete Your Profile</button>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
-            {users.map(u => (
-              <div key={u.id} onClick={() => setSelectedProfile(u)} style={{ cursor: 'pointer', background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-                {u.photos && u.photos.length > 0 ? (
-                  <img src={u.photos[0]} alt={u.display_name} style={{ width: '100%', height: '250px', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ width: '100%', height: '250px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
-                )}
-                <div style={{ padding: '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0 }}>{u.display_name || u.email?.split('@')[0]}, {u.age || '?'}</h3>
-                    <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: u.is_online ? '#4CAF50' : '#999' }}></span>
-                  </div>
-                  <p style={{ color: '#666', fontSize: '14px' }}>📍 {u.location_city || 'Unknown'}</p>
-                  <p style={{ fontSize: '13px', color: '#666' }}>{u.bio?.substring(0, 80)}...</p>
-                  <button onClick={(e) => { e.stopPropagation(); handleLike(u.id); }} style={{ width: '100%', padding: '10px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '10px' }}>❤️ Like</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // INBOX VIEW
-  if (view === 'inbox') {
-    return (
-      <div style={{ maxWidth: '600px', margin: '20px auto', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={{ color: '#ff6b6b' }}>🔥 Flame Connect</h1>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => setView('people')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👥 People</button>
-            <button onClick={() => setView('inbox')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>💬 Inbox</button>
-            <button onClick={() => setView('profile')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👤 Profile</button>
-          </div>
-        </div>
-        
-        <h2>Your Conversations</h2>
-        {matches.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: '64px', marginBottom: '20px' }}>💌</div>
-            <h2>No conversations yet</h2>
-            <p>Explore profiles and send a message to start chatting!</p>
-            <button onClick={() => setView('people')} style={{ padding: '12px 24px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Browse People</button>
-          </div>
-        ) : (
-          matches.map(match => (
-            <div key={match.id} style={{ border: '1px solid #eee', borderRadius: '10px', padding: '15px', marginBottom: '10px' }}>
-              <strong>{match.display_name || match.email?.split('@')[0]}</strong>
-              <p>{match.age} years • {match.location_city || 'Anywhere'}</p>
-            </div>
-          ))
-        )}
-      </div>
-    )
-  }
-
-  // PROFILE VIEW
-  if (view === 'profile') {
-    return (
-      <div style={{ maxWidth: '500px', margin: '20px auto', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={{ color: '#ff6b6b' }}>🔥 Flame Connect</h1>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => setView('people')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👥 People</button>
-            <button onClick={() => setView('inbox')} style={{ background: 'none', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>💬 Inbox</button>
-            <button onClick={() => setView('profile')} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '25px', cursor: 'pointer' }}>👤 Profile</button>
-          </div>
-        </div>
-        
-        <div style={{ textAlign: 'center' }}>
-          {photos.length > 0 ? (
-            <img src={photos[0]} alt="Profile" style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', marginBottom: '15px', border: '3px solid #ff6b6b' }} />
+  switch (currentView) {
+    case VIEW_KEYS.LANDING:
+      return <LandingPage onLoginClick={() => setCurrentView(VIEW_KEYS.LOGIN)} onSignupClick={() => setCurrentView(VIEW_KEYS.SIGNUP)} onNavigate={navigateTo} />;
+    case VIEW_KEYS.LOGIN:
+      return <LoginPage onLogin={() => checkUser()} onSwitchToSignup={() => setCurrentView(VIEW_KEYS.SIGNUP)} />;
+    case VIEW_KEYS.SIGNUP:
+      return <SignupPage onSwitchToLogin={() => setCurrentView(VIEW_KEYS.LOGIN)} />;
+    case VIEW_KEYS.ONBOARDING:
+      return (
+        <Onboarding
+          displayName={displayName}
+          setDisplayName={setDisplayName}
+          age={age}
+          setAge={setAge}
+          gender={gender}
+          setGender={setGender}
+          lookingFor={lookingFor}
+          setLookingFor={setLookingFor}
+          mood={mood}
+          setMood={setMood}
+          location={location}
+          setLocation={setLocation}
+          bio={bio}
+          setBio={setBio}
+          photos={photos}
+          uploading={uploading}
+          onPhotoUpload={(event) => uploadPhoto(event.target.files?.[0])}
+          onUseCurrentLocation={useCurrentLocation}
+          onComplete={completeOnboarding}
+          message={message}
+        />
+      );
+    case VIEW_KEYS.PEOPLE:
+      return wrapWithDock(
+        <AppShell navActions={mainNav(VIEW_KEYS.PEOPLE)} subtitle="Discover singles curated for your preferences" onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}>
+          <PeopleHub users={users} matches={matches} chatRequests={chatRequests} onOpenChat={openDirectChat} onLike={handleLike} onSelectProfile={() => {}} />
+        </AppShell>
+      );
+    case VIEW_KEYS.INBOX:
+      return wrapWithDock(
+        <AppShell navActions={mainNav(VIEW_KEYS.INBOX)} maxWidth="780px" subtitle="Reply quickly and keep your matches warm" onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}>
+          <section style={{ marginBottom: '14px', background: '#fff', border: '1px solid #e8ebf3', borderRadius: '16px', padding: '14px 16px' }}>
+            <h2 style={{ margin: '0 0 4px', fontSize: '22px', color: '#1f2230' }}>Your Conversations</h2>
+            <p style={{ margin: 0, color: '#6b7288', fontSize: '14px' }}>Open a chat and keep the momentum going.</p>
+          </section>
+          {selectedMatch ? (
+            <ChatPage match={selectedMatch} currentUser={user} onBack={() => setSelectedMatch(null)} />
           ) : (
-            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#f0f0f0', margin: '0 auto 15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>📷</div>
+            <Inbox
+              matches={matches}
+              chatRequests={chatRequests}
+              likedProfiles={likedProfiles}
+              unreadByUser={unreadByUser}
+              onBrowsePeople={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+              onSelectMatch={setSelectedMatch}
+              onOpenRequest={openDirectChat}
+              onOpenLikedProfile={openDirectChat}
+            />
           )}
-          <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} id="profile-photo" />
-          <label htmlFor="profile-photo" style={{ display: 'inline-block', color: '#ff6b6b', cursor: 'pointer', marginBottom: '15px' }}>Change Photo</label>
-          
-          <h2>{profile?.display_name || user?.email?.split('@')[0]}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#4CAF50' }}></span>
-            <span>Online</span>
-            <span>•</span>
-            <span>📍 {profile?.location_city || 'Cape Town'}</span>
-          </div>
-          <p>{profile?.bio}</p>
-          
-          <button onClick={() => { setStep(0); setView('onboarding'); }} style={{ width: '100%', padding: '14px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>Edit Profile</button>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '14px', background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '10px' }}>Logout</button>
-        </div>
-      </div>
-    )
+        </AppShell>
+      );
+    case VIEW_KEYS.PROFILE:
+      return wrapWithDock(
+        <AppShell navActions={mainNav(VIEW_KEYS.PROFILE)} maxWidth="620px" subtitle="Manage your profile and matching preferences" onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}>
+          <Profile
+            profile={profile}
+            user={user}
+            photos={photos}
+            onEditProfile={() => setCurrentView(VIEW_KEYS.ONBOARDING)}
+            onLogout={handleLogout}
+            onPhotoChange={(event) => uploadPhoto(event.target.files?.[0])}
+          />
+        </AppShell>
+      );
+    case VIEW_KEYS.SETTINGS:
+      return wrapWithDock(<SettingsPage user={user} onBack={() => setCurrentView(VIEW_KEYS.PROFILE)} />);
+    case VIEW_KEYS.NOTIFICATIONS:
+      return wrapWithDock(<NotificationsPage user={user} onBack={() => setCurrentView(VIEW_KEYS.PEOPLE)} onNavigate={navigateTo} />);
+    case VIEW_KEYS.EXPLORE:
+      return wrapWithDock(<ExplorePage user={user} onBack={() => setCurrentView(VIEW_KEYS.PEOPLE)} onSelectProfile={() => {}} />);
+    case VIEW_KEYS.HELP:
+      return wrapWithDock(<HelpPage onBack={() => setCurrentView(VIEW_KEYS.LANDING)} />);
+    case VIEW_KEYS.TERMS:
+      return wrapWithDock(<TermsPage onBack={() => setCurrentView(VIEW_KEYS.LANDING)} />);
+    case VIEW_KEYS.PRIVACY:
+      return wrapWithDock(<PrivacyPage onBack={() => setCurrentView(VIEW_KEYS.LANDING)} />);
+    case VIEW_KEYS.UPGRADE:
+      return wrapWithDock(<UpgradePage onBack={() => setCurrentView(VIEW_KEYS.PROFILE)} />);
+    default:
+      return <NotFoundPage onNavigate={navigateTo} />;
   }
-
-  // PROFILE DETAIL VIEW
-  if (selectedProfile) {
-    const p = selectedProfile
-    return (
-      <div style={{ maxWidth: '500px', margin: '20px auto', padding: '20px' }}>
-        <button onClick={() => setSelectedProfile(null)} style={{ marginBottom: '20px', padding: '10px 20px', cursor: 'pointer', background: '#f0f0f0', border: 'none', borderRadius: '25px' }}>← Back</button>
-        <div style={{ textAlign: 'center' }}>
-          {p.photos && p.photos.length > 0 ? (
-            <img src={p.photos[0]} alt={p.display_name} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #ff6b6b' }} />
-          ) : (
-            <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#f0f0f0', margin: '0 auto' }}>📷</div>
-          )}
-          <h2>{p.display_name || p.email?.split('@')[0]}, {p.age}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: p.is_online ? '#4CAF50' : '#999' }}></span>
-            <span>{p.is_online ? 'Online' : 'Offline'}</span>
-            <span>•</span>
-            <span>📍 {p.location_city || 'Unknown'}</span>
-          </div>
-          <p>{p.bio}</p>
-          <button onClick={() => handleLike(p.id)} style={{ padding: '12px 30px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', marginTop: '20px' }}>❤️ Send Like</button>
-        </div>
-      </div>
-    )
-  }
-
-  return null
 }
 
-export default App
+export default App;

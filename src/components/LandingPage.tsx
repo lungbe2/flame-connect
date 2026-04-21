@@ -2,66 +2,147 @@ import React from 'react';
 
 export default function LandingPage({ onLoginClick, onSignupClick }) {
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif' }}>
-      {/* Navigation */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 50px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-        <h1 style={{ color: '#ff6b6b', margin: 0 }}>🔥 Flame Connect</h1>
-        <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
-          <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Home</a>
-          <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Features</a>
-          <a href="#" style={{ textDecoration: 'none', color: '#333' }}>Success Stories</a>
-          <button onClick={onLoginClick} style={{ background: '#ff6b6b', color: 'white', border: 'none', padding: '10px 28px', borderRadius: '25px', cursor: 'pointer' }}>Login</button>
-          <button onClick={onSignupClick} style={{ background: 'transparent', color: '#ff6b6b', border: '2px solid #ff6b6b', padding: '10px 28px', borderRadius: '25px', cursor: 'pointer' }}>Sign Up</button>
+    <div className="landing-glow" style={{ paddingBottom: '14px' }}>
+      <nav
+        style={{
+          maxWidth: '1180px',
+          margin: '18px auto',
+          padding: '14px 18px',
+          borderRadius: '20px',
+          background: 'rgba(255,255,255,0.92)',
+          border: '1px solid #ebeef5',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}
+      >
+        <div style={{ fontWeight: 800, fontSize: '24px', letterSpacing: '-0.03em', color: '#e83f5b' }}>Flame Connect</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={onLoginClick} style={{ background: '#fff', color: '#e83f5b', border: '1px solid #f3c7cf', padding: '10px 18px', borderRadius: '999px', cursor: 'pointer', fontWeight: 700 }}>
+            Log in
+          </button>
+          <button
+            onClick={onSignupClick}
+            style={{
+              background: 'linear-gradient(135deg, #e83f5b 0%, #ff6a63 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: '999px',
+              cursor: 'pointer',
+              fontWeight: 800,
+              boxShadow: '0 10px 20px rgba(232,63,91,0.27)'
+            }}
+          >
+            Join free
+          </button>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <div style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)', color: 'white', textAlign: 'center', padding: '100px 20px' }}>
-        <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>Find Your Perfect Match 🔥</h1>
-        <p style={{ fontSize: '20px', marginBottom: '30px', maxWidth: '600px', margin: '0 auto 30px' }}>Join thousands of singles looking for meaningful connections. Love is just a click away!</p>
-        <button onClick={onSignupClick} style={{ background: 'white', color: '#ff6b6b', border: 'none', padding: '15px 40px', fontSize: '18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' }}>Get Started →</button>
-      </div>
+      <section style={{ maxWidth: '1180px', margin: '10px auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', padding: '0 10px' }}>
+        <div
+          style={{
+            borderRadius: '30px',
+            padding: '56px 40px',
+            background: 'linear-gradient(155deg, #ffffff 0%, #fff0f4 70%, #ffe4ea 100%)',
+            border: '1px solid #f4dbe1',
+            boxShadow: '0 18px 35px rgba(39,52,88,0.08)'
+          }}
+        >
+          <div style={{ display: 'inline-block', padding: '7px 13px', borderRadius: '999px', background: '#fff', border: '1px solid #f3ccd4', color: '#e83f5b', fontWeight: 700, marginBottom: '18px' }}>
+            Trendy dating. Better matches.
+          </div>
+          <h1 style={{ fontSize: 'clamp(34px, 5vw, 60px)', lineHeight: 0.98, letterSpacing: '-0.04em', margin: '0 0 14px', color: '#1e1f2c' }}>
+            Find chemistry that feels effortless.
+          </h1>
+          <p style={{ fontSize: '18px', color: '#60657b', lineHeight: 1.7, marginBottom: '24px', maxWidth: '580px' }}>
+            Discover nearby singles by intent, live status, and vibe. From fun chats to serious relationships, Flame Connect helps you move faster.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              onClick={onSignupClick}
+              style={{
+                background: 'linear-gradient(135deg, #e83f5b 0%, #ff6a63 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '14px 24px',
+                borderRadius: '999px',
+                cursor: 'pointer',
+                fontWeight: 800,
+                boxShadow: '0 12px 24px rgba(232,63,91,0.27)'
+              }}
+            >
+              Start now
+            </button>
+            <button onClick={onLoginClick} style={{ background: '#fff', color: '#202235', border: '1px solid #e8ebf3', padding: '14px 24px', borderRadius: '999px', cursor: 'pointer', fontWeight: 700 }}>
+              I have an account
+            </button>
+          </div>
+        </div>
 
-      {/* Footer */}
-      <footer style={{ background: '#1a1a2e', color: 'white', padding: '40px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '30px', maxWidth: '1000px', margin: '0 auto' }}>
+        <aside
+          style={{
+            borderRadius: '30px',
+            padding: '24px',
+            background: 'linear-gradient(160deg, #1f2230 0%, #2a2f45 100%)',
+            color: '#fff',
+            display: 'grid',
+            gap: '12px',
+            minHeight: '420px',
+            alignContent: 'space-between'
+          }}
+        >
           <div>
-            <h3>🔥 Flame Connect</h3>
-            <p>Find your perfect match today.</p>
-            <div style={{ display: 'flex', gap: '15px', marginTop: '15px' }}>
-              <span style={{ fontSize: '24px', cursor: 'pointer' }}>📘</span>
-              <span style={{ fontSize: '24px', cursor: 'pointer' }}>🐦</span>
-              <span style={{ fontSize: '24px', cursor: 'pointer' }}>📷</span>
-            </div>
+            <div style={{ fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffb6c0', marginBottom: '10px' }}>Live Activity</div>
+            <div style={{ fontSize: '46px', fontWeight: 800, lineHeight: 1 }}>9,000+</div>
+            <div style={{ fontSize: '18px', color: '#d9dbe8', marginTop: '8px' }}>new conversations started this week</div>
+          </div>
+          <div className="trend-float" style={{ padding: '14px', borderRadius: '14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+            "Found someone genuine in my city within 3 days."
+          </div>
+          <div className="trend-float-delayed" style={{ padding: '14px', borderRadius: '14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+            "The mood filters helped me match exactly what I wanted."
+          </div>
+        </aside>
+      </section>
+
+      <section style={{ maxWidth: '1180px', margin: '8px auto 0', padding: '0 10px' }}>
+        <div
+          style={{
+            borderRadius: '20px',
+            border: '1px solid #ebeef5',
+            background: '#fff',
+            padding: '18px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '10px'
+          }}
+        >
+          <div>
+            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Members</div>
+            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>2.1M+</div>
           </div>
           <div>
-            <h4>Quick Links</h4>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>About Us</a></li>
-              <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Success Stories</a></li>
-              <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Safety Tips</a></li>
-            </ul>
+            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Daily Likes</div>
+            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>410k</div>
           </div>
           <div>
-            <h4>Legal</h4>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Terms of Service</a></li>
-              <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Privacy Policy</a></li>
-              <li><a href="#" style={{ color: '#aaa', textDecoration: 'none' }}>Refund Policy</a></li>
-            </ul>
+            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Verified Profiles</div>
+            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>89%</div>
           </div>
           <div>
-            <h4>Trust Badges</h4>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>SSL Secure</span>
-              <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>Verified Profiles</span>
-              <span style={{ background: '#333', padding: '5px 10px', borderRadius: '5px', fontSize: '12px' }}>24/7 Support</span>
-            </div>
+            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg. Reply Time</div>
+            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>6m</div>
           </div>
         </div>
-        <div style={{ textAlign: 'center', marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #333', color: '#aaa' }}>
-          <p>&copy; 2024 Flame Connect. All rights reserved.</p>
-        </div>
+      </section>
+
+      <footer style={{ maxWidth: '1180px', margin: '24px auto 18px', padding: '20px 12px', color: '#70758a', fontSize: '14px', display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+        <span>2026 Flame Connect</span>
+        <span>Safe matching tools, profile verification, and privacy controls</span>
       </footer>
     </div>
   );

@@ -1,7 +1,10 @@
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import App from './App.tsx'
+import AdminPortalApp from './AdminPortalApp'
+import './App.css'
 
-console.log("Root element:", document.getElementById('root'))
-console.log("App component:", App)
+const isAdminRoute = window.location.pathname.toLowerCase().startsWith('/admin')
 
-ReactDOM.createRoot(document.getElementById('root')!).render(<App />)
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  isAdminRoute ? <AdminPortalApp /> : <App />
+)
