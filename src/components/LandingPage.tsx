@@ -3,10 +3,23 @@ import React from 'react';
 export default function LandingPage({ onLoginClick, onSignupClick }) {
   return (
     <div className="landing-glow" style={{ paddingBottom: '14px' }}>
+      <section style={{ maxWidth: '1180px', margin: '18px auto 12px', padding: '0 10px' }}>
+        <div className="brand-banner brand-banner-hero">
+          <img className="brand-banner-image" src="/brand/flame-banner-clean.png" alt="Flame Connect Ignite Your Love Life banner" />
+          <div className="brand-banner-overlay" />
+          <div className="brand-banner-chip">
+            <img className="brand-banner-chip-logo" src="/favicon.svg" alt="Flame Connect" />
+            <div>
+              <div className="brand-banner-chip-title">Flame Connect</div>
+              <div className="brand-banner-chip-copy">Meet real singles. Match by vibe. Start better conversations.</div>
+            </div>
+          </div>
+        </div>
+      </section>
       <nav
         style={{
           maxWidth: '1180px',
-          margin: '18px auto',
+          margin: '0 auto 10px',
           padding: '14px 18px',
           borderRadius: '20px',
           background: 'rgba(255,255,255,0.92)',
@@ -19,7 +32,12 @@ export default function LandingPage({ onLoginClick, onSignupClick }) {
           flexWrap: 'wrap'
         }}
       >
-        <div style={{ fontWeight: 800, fontSize: '24px', letterSpacing: '-0.03em', color: '#e83f5b' }}>Flame Connect</div>
+        <div className="brand-lockup">
+          <div className="brand-lockup-button" style={{ cursor: 'default' }}>
+            <img className="brand-lockup-logo" src="/favicon.svg" alt="Flame Connect logo" />
+            <span className="brand-lockup-text">Flame Connect</span>
+          </div>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={onLoginClick} style={{ background: '#fff', color: '#e83f5b', border: '1px solid #f3c7cf', padding: '10px 18px', borderRadius: '999px', cursor: 'pointer', fontWeight: 700 }}>
             Log in

@@ -19,6 +19,10 @@ type AppShellProps = {
 export default function AppShell({ children, navActions, maxWidth = '1200px', subtitle, onBrandClick }: AppShellProps) {
   return (
     <div className="app-shell-wrap" style={{ maxWidth }}>
+      <div className="brand-banner brand-banner-compact">
+        <img className="brand-banner-image" src="/brand/flame-banner-clean.png" alt="Flame Connect banner" />
+        <div className="brand-banner-overlay" />
+      </div>
       <div
         className="app-shell-header"
         style={{
@@ -34,13 +38,15 @@ export default function AppShell({ children, navActions, maxWidth = '1200px', su
           flexWrap: 'wrap'
         }}
       >
-        <div>
+        <div className="brand-lockup">
           <button
             type="button"
             onClick={onBrandClick}
-            style={{ color: '#e83f5b', margin: 0, fontSize: '24px', fontWeight: 800, border: 'none', background: 'none', padding: 0, cursor: onBrandClick ? 'pointer' : 'default' }}
+            className="brand-lockup-button"
+            style={{ cursor: onBrandClick ? 'pointer' : 'default' }}
           >
-            Flame Connect
+            <img className="brand-lockup-logo" src="/favicon.svg" alt="Flame Connect logo" />
+            <span className="brand-lockup-text">Flame Connect</span>
           </button>
           {subtitle && <div style={{ color: '#7c8298', fontSize: '13px', marginTop: '2px' }}>{subtitle}</div>}
         </div>

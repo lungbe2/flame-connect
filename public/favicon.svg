@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="flameconnect-bg" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF8A6B"/>
+      <stop offset="0.52" stop-color="#FF5E63"/>
+      <stop offset="1" stop-color="#E83F5B"/>
+    </linearGradient>
+    <linearGradient id="flameconnect-flame" x1="28" y1="15" x2="40" y2="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF7F2"/>
+      <stop offset="1" stop-color="#FFE0D8"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#flameconnect-bg)"/>
+  <path d="M32.94 14C35.22 18.89 42.4 23.27 42.4 32.18C42.4 40.58 37.52 46 32 46C26.48 46 21.6 40.58 21.6 32.92C21.6 26.34 25.57 21.45 29.87 18.04C30.71 21.63 29.95 25.12 27.53 28.36C31.83 26.45 34.14 20.84 32.94 14Z" fill="url(#flameconnect-flame)"/>
+  <path d="M32 27.4C35.6 30.25 37.8 33.15 37.8 36.47C37.8 40.19 35.18 43 32 43C28.82 43 26.2 40.19 26.2 36.91C26.2 34.15 27.81 31.91 30.28 30.01C30.82 31.84 30.46 33.62 29.22 35.23C31.44 34.32 32.87 31.44 32 27.4Z" fill="#B51F42"/>
+</svg>
