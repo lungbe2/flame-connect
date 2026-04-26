@@ -2,10 +2,35 @@ import React, { useRef, useState } from 'react';
 import TurnstileWidget, { type TurnstileWidgetRef } from '../components/TurnstileWidget';
 import { supabase } from '../lib/supabase';
 
+const getAgeFromBirthDate = (value: string) => {
+  if (!value) {
+    return null;
+  }
+
+  const birthDate = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) {
+    return null;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+  const hasHadBirthday =
+    monthDifference > 0 || (monthDifference === 0 && today.getDate() >= birthDate.getDate());
+
+  if (!hasHadBirthday) {
+    age -= 1;
+  }
+
+  return age;
+};
+
 export default function SignupPage({ onSwitchToLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -21,10 +46,39 @@ export default function SignupPage({ onSwitchToLogin }) {
     setLoading(true);
     setMessage('');
 
+    const derivedAge = getAgeFromBirthDate(birthDate);
+    if (derivedAge === null) {
+      setMessage('Enter a valid date of birth.');
+      setLoading(false);
+      captchaRef.current?.reset();
+      return;
+    }
+
+    if (derivedAge < 18) {
+      setMessage('Flame Connect is strictly for adults aged 18 and older.');
+      setLoading(false);
+      captchaRef.current?.reset();
+      return;
+    }
+
+    if (!ageConfirmed) {
+      setMessage('You must confirm that you are 18 or older to create an account.');
+      setLoading(false);
+      captchaRef.current?.reset();
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName || email.split('@')[0] }, captchaToken }
+      options: {
+        data: {
+          display_name: displayName || email.split('@')[0],
+          birth_date: birthDate,
+          age_confirmed: true
+        },
+        captchaToken
+      }
     });
 
     if (error) {
@@ -93,6 +147,33 @@ export default function SignupPage({ onSwitchToLogin }) {
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
+            <div style={{ display: 'grid', gap: '6px' }}>
+              <label htmlFor="signup-birth-date" style={{ fontSize: '13px', fontWeight: 700, color: '#49506a' }}>
+                Date of birth
+              </label>
+              <input
+                id="signup-birth-date"
+                type="date"
+                value={birthDate}
+                onChange={(event) => setBirthDate(event.target.value)}
+                style={{ width: '100%', padding: '13px 14px', border: '1px solid #dfe4ef', borderRadius: '12px', background: '#f8f9fd' }}
+                required
+              />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e6e9f2', background: '#fff7f8', color: '#4b526b', lineHeight: 1.5 }}>
+              <input
+                type="checkbox"
+                checked={ageConfirmed}
+                onChange={(event) => setAgeConfirmed(event.target.checked)}
+                style={{ marginTop: '3px' }}
+                required
+              />
+              <span>I confirm that I am at least 18 years old and that the information I provide to Flame Connect is accurate.</span>
+            </label>
+            <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.6, color: '#6b7288' }}>
+              Privacy statement: we only use your details to run your account, improve matching, support safety reviews, and respond to support requests. People under 18 may not register or use this service.
+            </p>
+            <TurnstileWidget ref={captchaRef} onTokenChange={setCaptchaToken} />
             <button
               type="submit"
               disabled={loading}
@@ -100,7 +181,6 @@ export default function SignupPage({ onSwitchToLogin }) {
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>
-            <TurnstileWidget ref={captchaRef} onTokenChange={setCaptchaToken} />
           </form>
           <p style={{ marginTop: '16px', color: '#646a80' }}>
             Already have an account?{' '}

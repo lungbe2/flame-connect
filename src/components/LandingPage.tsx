@@ -1,6 +1,8 @@
 import React from 'react';
+import { VIEW_KEYS } from '../config/navigation';
+import SiteFooter from './SiteFooter';
 
-export default function LandingPage({ onLoginClick, onSignupClick }) {
+export default function LandingPage({ onLoginClick, onSignupClick, onNavigate }) {
   return (
     <div className="landing-glow" style={{ paddingBottom: '14px' }}>
       <section style={{ maxWidth: '1180px', margin: '18px auto 12px', padding: '0 10px' }}>
@@ -158,10 +160,9 @@ export default function LandingPage({ onLoginClick, onSignupClick }) {
         </div>
       </section>
 
-      <footer style={{ maxWidth: '1180px', margin: '24px auto 18px', padding: '20px 12px', color: '#70758a', fontSize: '14px', display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-        <span>2026 Flame Connect</span>
-        <span>Safe matching tools, profile verification, and privacy controls</span>
-      </footer>
+      <section style={{ maxWidth: '1180px', margin: '0 auto', padding: '0 10px' }}>
+        <SiteFooter onTermsClick={() => onNavigate?.(VIEW_KEYS.TERMS)} onPrivacyClick={() => onNavigate?.(VIEW_KEYS.PRIVACY)} />
+      </section>
     </div>
   );
 }

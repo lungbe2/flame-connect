@@ -1,4 +1,5 @@
 import React from 'react';
+import SiteFooter from './SiteFooter';
 
 type NavAction = {
   key: string;
@@ -14,9 +15,11 @@ type AppShellProps = {
   maxWidth?: string;
   subtitle?: string;
   onBrandClick?: () => void;
+  onTermsClick?: () => void;
+  onPrivacyClick?: () => void;
 };
 
-export default function AppShell({ children, navActions, maxWidth = '1200px', subtitle, onBrandClick }: AppShellProps) {
+export default function AppShell({ children, navActions, maxWidth = '1200px', subtitle, onBrandClick, onTermsClick, onPrivacyClick }: AppShellProps) {
   return (
     <div className="app-shell-wrap" style={{ maxWidth }}>
       <div className="brand-banner brand-banner-compact">
@@ -76,6 +79,7 @@ export default function AppShell({ children, navActions, maxWidth = '1200px', su
         </div>
       </div>
       {children}
+      <SiteFooter onTermsClick={onTermsClick} onPrivacyClick={onPrivacyClick} />
       <nav className="app-shell-mobile-nav">
         {navActions.map((action) => (
           <button key={`mobile-${action.key}`} type="button" onClick={action.onClick} className={`app-shell-mobile-btn ${action.active ? 'active' : ''}`}>

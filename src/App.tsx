@@ -779,13 +779,26 @@ function App() {
       );
     case VIEW_KEYS.PEOPLE:
       return wrapWithDock(
-        <AppShell navActions={mainNav(VIEW_KEYS.PEOPLE)} subtitle="Discover singles curated for your preferences" onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}>
+        <AppShell
+          navActions={mainNav(VIEW_KEYS.PEOPLE)}
+          subtitle="Discover singles curated for your preferences"
+          onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
+          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
+        >
           <PeopleHub users={users} matches={matches} chatRequests={chatRequests} onOpenChat={openDirectChat} onLike={handleLike} onSelectProfile={() => {}} />
         </AppShell>
       );
     case VIEW_KEYS.INBOX:
       return wrapWithDock(
-        <AppShell navActions={mainNav(VIEW_KEYS.INBOX)} maxWidth="780px" subtitle="Reply quickly and keep your matches warm" onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}>
+        <AppShell
+          navActions={mainNav(VIEW_KEYS.INBOX)}
+          maxWidth="780px"
+          subtitle="Reply quickly and keep your matches warm"
+          onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
+          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
+        >
           <section style={{ marginBottom: '14px', background: '#fff', border: '1px solid #e8ebf3', borderRadius: '16px', padding: '14px 16px' }}>
             <h2 style={{ margin: '0 0 4px', fontSize: '22px', color: '#1f2230' }}>Your Conversations</h2>
             <p style={{ margin: 0, color: '#6b7288', fontSize: '14px' }}>Open a chat and keep the momentum going.</p>
@@ -808,7 +821,14 @@ function App() {
       );
     case VIEW_KEYS.PROFILE:
       return wrapWithDock(
-        <AppShell navActions={mainNav(VIEW_KEYS.PROFILE)} maxWidth="620px" subtitle="Manage your profile and matching preferences" onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}>
+        <AppShell
+          navActions={mainNav(VIEW_KEYS.PROFILE)}
+          maxWidth="620px"
+          subtitle="Manage your profile and matching preferences"
+          onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
+          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
+        >
           <Profile
             profile={profile}
             user={user}
