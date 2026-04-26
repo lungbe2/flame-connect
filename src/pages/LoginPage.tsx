@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import TurnstileWidget, { type TurnstileWidgetRef } from '../components/TurnstileWidget';
 import { supabase } from '../lib/supabase';
 
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
@@ -12,6 +13,8 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileWidgetRef | null>(null);
 
   useEffect(() => {
     const hash = window.location.hash || '';
@@ -53,6 +56,10 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!captchaToken) {
+      setMessage('Please complete the human verification first.');
+      return;
+    }
     setLoading(true);
     setMessage('');
 
@@ -60,7 +67,8 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
     const normalizedPassword = password.trim();
     const { data, error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
-      password: normalizedPassword
+      password: normalizedPassword,
+      options: { captchaToken }
     });
 
     if (error) {
@@ -73,16 +81,21 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
     }
 
     setLoading(false);
+    captchaRef.current?.reset();
   };
 
   const handleForgotPassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!captchaToken) {
+      setMessage('Please complete the human verification first.');
+      return;
+    }
     setLoading(true);
     setMessage('');
 
     const emailToReset = resetEmail.trim().toLowerCase();
     const redirectTo = `${window.location.origin}`;
-    const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, { redirectTo });
+    const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, { redirectTo, captchaToken });
 
     if (error) {
       setMessage(error.message || 'Unable to send reset link right now.');
@@ -92,6 +105,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
     }
 
     setLoading(false);
+    captchaRef.current?.reset();
   };
 
   const handleUpdatePassword = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -207,6 +221,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
                   setResetEmail(email);
                   setShowForgotPassword(true);
                   setMessage('');
+                  setCaptchaToken(null);
                 }}
                 style={{ background: 'none', border: 'none', color: '#e83f5b', cursor: 'pointer', justifySelf: 'start', padding: 0, fontWeight: 600 }}
               >
@@ -219,6 +234,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
               >
                 {loading ? 'Logging in...' : 'Log in'}
               </button>
+              <TurnstileWidget ref={captchaRef} onTokenChange={setCaptchaToken} />
             </form>
           ) : (
             <form onSubmit={handleForgotPassword} style={{ display: 'grid', gap: '12px' }}>
@@ -238,11 +254,13 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
               >
                 {loading ? 'Sending...' : 'Send reset link'}
               </button>
+              <TurnstileWidget ref={captchaRef} onTokenChange={setCaptchaToken} />
               <button
                 type="button"
                 onClick={() => {
                   setShowForgotPassword(false);
                   setMessage('');
+                  setCaptchaToken(null);
                 }}
                 style={{ background: 'none', border: 'none', color: '#49506a', cursor: 'pointer', justifySelf: 'start', padding: 0, fontWeight: 600 }}
               >

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import TurnstileWidget, { type TurnstileWidgetRef } from '../components/TurnstileWidget';
 import { supabase } from '../lib/supabase';
 
 export default function SignupPage({ onSwitchToLogin }) {
@@ -8,16 +9,22 @@ export default function SignupPage({ onSwitchToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileWidgetRef | null>(null);
 
   const handleSignup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!captchaToken) {
+      setMessage('Please complete the human verification first.');
+      return;
+    }
     setLoading(true);
     setMessage('');
 
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName || email.split('@')[0] } }
+      options: { data: { display_name: displayName || email.split('@')[0] }, captchaToken }
     });
 
     if (error) {
@@ -28,6 +35,7 @@ export default function SignupPage({ onSwitchToLogin }) {
     }
 
     setLoading(false);
+    captchaRef.current?.reset();
   };
 
   return (
@@ -92,6 +100,7 @@ export default function SignupPage({ onSwitchToLogin }) {
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>
+            <TurnstileWidget ref={captchaRef} onTokenChange={setCaptchaToken} />
           </form>
           <p style={{ marginTop: '16px', color: '#646a80' }}>
             Already have an account?{' '}
