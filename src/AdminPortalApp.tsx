@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
 import AdminPage from './pages/AdminPage';
+import TurnstileWidget, { type TurnstileWidgetRef } from './components/TurnstileWidget';
 
 const ADMIN_EMAIL = 'lungbe2@gmail.com';
 
@@ -12,6 +13,8 @@ export default function AdminPortalApp() {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileWidgetRef | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -24,13 +27,22 @@ export default function AdminPortalApp() {
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!captchaToken) {
+      setMessage('Please complete the human verification first.');
+      return;
+    }
     setSubmitting(true);
     setMessage('');
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken }
+    });
     if (error) {
       setMessage(error.message);
       setSubmitting(false);
+      captchaRef.current?.reset();
       return;
     }
 
@@ -39,11 +51,13 @@ export default function AdminPortalApp() {
       await supabase.auth.signOut();
       setMessage('This account is not authorized for admin portal.');
       setSubmitting(false);
+      captchaRef.current?.reset();
       return;
     }
 
     setUser(nextUser);
     setSubmitting(false);
+    captchaRef.current?.reset();
   };
 
   const handleLogout = async () => {
@@ -116,6 +130,7 @@ export default function AdminPortalApp() {
             >
               {submitting ? 'Signing in...' : 'Sign in to Admin'}
             </button>
+            <TurnstileWidget ref={captchaRef} onTokenChange={setCaptchaToken} />
           </form>
           {message && <p style={{ color: '#d93e5b', marginBottom: 0 }}>{message}</p>}
         </div>
