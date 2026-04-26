@@ -9,15 +9,17 @@ const linkButtonStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
   padding: 0,
-  color: '#d93e5b',
+  color: '#ff7a7a',
   cursor: 'pointer',
-  fontWeight: 700
+  fontWeight: 700,
+  fontSize: '13px'
 };
 
 const emailLinkStyle: React.CSSProperties = {
-  color: '#4f5874',
+  color: '#d7dceb',
   textDecoration: 'none',
-  fontWeight: 600
+  fontWeight: 500,
+  fontSize: '13px'
 };
 
 export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterProps) {
@@ -25,11 +27,14 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
     <footer
       style={{
         marginTop: '24px',
-        borderTop: '1px solid #e8ebf3',
-        padding: '24px 4px 28px',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '24px',
+        padding: '22px 18px 24px',
         display: 'grid',
         gap: '14px',
-        color: '#667089'
+        color: '#b8bfd2',
+        background: 'linear-gradient(180deg, #11131b 0%, #0b0d12 100%)',
+        boxShadow: '0 18px 40px rgba(8,10,15,0.22)'
       }}
     >
       <div
@@ -41,14 +46,29 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
         }}
       >
         <div>
-          <div style={{ fontSize: '18px', fontWeight: 800, color: '#20263c', marginBottom: '6px' }}>Flame Connect</div>
-          <p style={{ margin: 0, lineHeight: 1.6 }}>
-            Flame Connect is an adults-only dating platform. We use moderation tools, abuse protections, and privacy controls to keep conversations safer and more respectful.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '14px',
+                background: 'rgba(255,255,255,0.06)',
+                display: 'grid',
+                placeItems: 'center',
+                border: '1px solid rgba(255,255,255,0.08)'
+              }}
+            >
+              <img src="/favicon.svg" alt="Flame Connect logo" style={{ width: '24px', height: '24px', display: 'block' }} />
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>Flame Connect</div>
+          </div>
+          <p style={{ margin: 0, lineHeight: 1.55, fontSize: '13px' }}>
+            Adults-only dating with safer matching, abuse protection, and privacy controls built into the experience.
           </p>
         </div>
 
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 800, color: '#20263c', marginBottom: '8px' }}>Contact</div>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#ffffff', marginBottom: '8px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Contact</div>
           <div style={{ display: 'grid', gap: '6px' }}>
             <a href="mailto:info@flameconnect.co.za" style={emailLinkStyle}>
               info@flameconnect.co.za
@@ -63,8 +83,8 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
         </div>
 
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 800, color: '#20263c', marginBottom: '8px' }}>Privacy Statement</div>
-          <p style={{ margin: '0 0 10px', lineHeight: 1.6 }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#ffffff', marginBottom: '8px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Privacy</div>
+          <p style={{ margin: '0 0 10px', lineHeight: 1.55, fontSize: '13px' }}>
             We only use personal information to operate your account, improve matching, respond to support requests, and enforce safety on the platform. People under 18 are not allowed to register or use Flame Connect.
           </p>
           <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
@@ -88,8 +108,10 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
           justifyContent: 'space-between',
           gap: '10px',
           flexWrap: 'wrap',
-          fontSize: '13px',
-          color: '#7b839b'
+          fontSize: '12px',
+          color: '#8f97ab',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          paddingTop: '12px'
         }}
       >
         <span>© 2026 Flame Connect. Adults 18+ only.</span>
