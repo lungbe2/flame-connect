@@ -34,7 +34,17 @@ export default function PeopleHub({ users, matches = [], chatRequests = [], onOp
 
       <section className="people-hub-layout">
         <main className="people-hub-main">
-          <PeopleGrid users={users} onLike={onLike} onSelectProfile={onSelectProfile} />
+          <PeopleGrid
+            users={users}
+            onLike={onLike}
+            onSelectProfile={onSelectProfile}
+            emptyTitle={matches.length > 0 || chatRequests.length > 0 ? 'No new profiles available right now' : 'No new profiles to show yet'}
+            emptyCopy={
+              matches.length > 0 || chatRequests.length > 0
+                ? 'Your chats and requests are still active. Check back soon as more people join.'
+                : 'Your profile is live. Check back soon as more people join Flame Connect.'
+            }
+          />
         </main>
 
         <aside className="people-hub-right">

@@ -3,6 +3,7 @@ import React from 'react';
 type SiteFooterProps = {
   onTermsClick?: () => void;
   onPrivacyClick?: () => void;
+  onCoachingClick?: () => void;
 };
 
 const linkButtonStyle: React.CSSProperties = {
@@ -22,7 +23,7 @@ const emailLinkStyle: React.CSSProperties = {
   fontSize: '13px'
 };
 
-export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterProps) {
+export default function SiteFooter({ onTermsClick, onPrivacyClick, onCoachingClick }: SiteFooterProps) {
   return (
     <footer
       style={{
@@ -80,6 +81,9 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
               dispute@flameconnect.co.za
             </a>
           </div>
+          <p style={{ margin: '10px 0 0', lineHeight: 1.55, fontSize: '12px' }}>
+            VIP coaching or dating tips by request: <a href="mailto:coaching@flameconnect.co.za?subject=Dating%20Coach%20Request" style={{ ...emailLinkStyle, color: '#ff9aa7' }}>coaching@flameconnect.co.za</a>
+          </p>
         </div>
 
         <div>
@@ -88,6 +92,11 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
             We only use personal information to operate your account, improve matching, respond to support requests, and enforce safety on the platform. People under 18 are not allowed to register or use Flame Connect.
           </p>
           <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+            {onCoachingClick && (
+              <button type="button" onClick={onCoachingClick} style={linkButtonStyle}>
+                VIP Coaching
+              </button>
+            )}
             {onPrivacyClick && (
               <button type="button" onClick={onPrivacyClick} style={linkButtonStyle}>
                 Privacy Policy
@@ -114,7 +123,7 @@ export default function SiteFooter({ onTermsClick, onPrivacyClick }: SiteFooterP
           paddingTop: '12px'
         }}
       >
-        <span>© 2026 Flame Connect. Adults 18+ only.</span>
+        <span>&copy; 2026 Flame Connect. Adults 18+ only.</span>
         <span>Use of this service means you agree to our privacy, safety, and moderation rules.</span>
       </div>
     </footer>

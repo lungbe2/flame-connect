@@ -6,6 +6,7 @@ import Onboarding from './components/Onboarding';
 import PeopleGrid from './components/PeopleGrid.tsx';
 import Inbox from './components/Inbox';
 import Profile from './components/Profile';
+import HomeDashboard from './components/HomeDashboard';
 import FloatingChatDock from './components/FloatingChatDock';
 import ChatPage from './pages/ChatPage';
 import MatchPage from './pages/MatchPage';
@@ -13,6 +14,7 @@ import SettingsPage from './pages/SettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ExplorePage from './pages/ExplorePage';
 import HelpPage from './pages/HelpPage';
+import CoachingPage from './pages/CoachingPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -207,7 +209,7 @@ function App() {
         await fetchMatches(currentUser.id);
         await fetchLikedProfiles(currentUser.id);
         await fetchUnreadCounts(currentUser.id);
-        setCurrentView(VIEW_KEYS.PEOPLE);
+        setCurrentView(VIEW_KEYS.HOME);
       } else {
         if (profileData) {
           setProfile(profileData);
@@ -735,15 +737,19 @@ function App() {
   useEffect(() => {
     const titleByView: Record<string, string> = {
       [VIEW_KEYS.LANDING]: 'Flame Connect - Meet Real Singles Near You',
+      [VIEW_KEYS.HOME]: 'Home - Flame Connect',
       [VIEW_KEYS.PEOPLE]: 'Discover People - Flame Connect',
       [VIEW_KEYS.INBOX]: 'Inbox - Flame Connect',
-      [VIEW_KEYS.PROFILE]: 'Your Profile - Flame Connect'
+      [VIEW_KEYS.PROFILE]: 'Your Profile - Flame Connect',
+      [VIEW_KEYS.COACHING]: 'VIP Coaching - Flame Connect'
     };
     document.title = titleByView[currentView] || 'Flame Connect';
 
     const description =
       currentView === VIEW_KEYS.PEOPLE
         ? 'Discover nearby singles, match by mood and intent, and start real conversations on Flame Connect.'
+        : currentView === VIEW_KEYS.COACHING
+          ? 'Request VIP coaching, dating tips, and profile guidance from the Flame Connect coaching team.'
         : 'Flame Connect helps you discover singles, match by intent, and chat in real time.';
     let tag = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
     if (!tag) {
@@ -755,6 +761,7 @@ function App() {
   }, [currentView]);
 
   const mainNav = (activeView: string) => [
+    { key: VIEW_KEYS.HOME, label: 'Home', active: activeView === VIEW_KEYS.HOME, onClick: () => setCurrentView(VIEW_KEYS.HOME) },
     { key: VIEW_KEYS.PEOPLE, label: 'People', active: activeView === VIEW_KEYS.PEOPLE, onClick: () => setCurrentView(VIEW_KEYS.PEOPLE) },
     {
       key: VIEW_KEYS.INBOX,
@@ -770,7 +777,7 @@ function App() {
     return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>;
   }
 
-  const dockEligibleViews = [VIEW_KEYS.PEOPLE, VIEW_KEYS.INBOX, VIEW_KEYS.PROFILE, VIEW_KEYS.SETTINGS, VIEW_KEYS.NOTIFICATIONS, VIEW_KEYS.EXPLORE, VIEW_KEYS.HELP, VIEW_KEYS.TERMS, VIEW_KEYS.PRIVACY, VIEW_KEYS.UPGRADE];
+  const dockEligibleViews = [VIEW_KEYS.HOME, VIEW_KEYS.PEOPLE, VIEW_KEYS.INBOX, VIEW_KEYS.PROFILE, VIEW_KEYS.SETTINGS, VIEW_KEYS.NOTIFICATIONS, VIEW_KEYS.EXPLORE, VIEW_KEYS.HELP, VIEW_KEYS.COACHING, VIEW_KEYS.TERMS, VIEW_KEYS.PRIVACY, VIEW_KEYS.UPGRADE];
   const shouldShowFloatingDock = !!user && dockEligibleViews.includes(currentView as any) && !(currentView === VIEW_KEYS.INBOX && !!selectedMatch);
 
   const wrapWithDock = (content: React.ReactNode) => (
@@ -836,12 +843,33 @@ function App() {
           message={message}
         />
       );
+    case VIEW_KEYS.HOME:
+      return wrapWithDock(
+        <AppShell
+          navActions={mainNav(VIEW_KEYS.HOME)}
+          subtitle="Your dating dashboard"
+          onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
+          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
+          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
+        >
+          <HomeDashboard
+            profile={profile}
+            matches={matches}
+            chatRequests={chatRequests}
+            users={users}
+            onOpenInbox={() => setCurrentView(VIEW_KEYS.INBOX)}
+            onOpenPeople={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+            onStartVideoCall={startDirectVideoCall}
+            onOpenCoaching={() => setCurrentView(VIEW_KEYS.COACHING)}
+          />
+        </AppShell>
+      );
     case VIEW_KEYS.PEOPLE:
       return wrapWithDock(
         <AppShell
           navActions={mainNav(VIEW_KEYS.PEOPLE)}
           subtitle="Discover singles curated for your preferences"
-          onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+          onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
           onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
           onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
@@ -854,7 +882,8 @@ function App() {
           navActions={mainNav(VIEW_KEYS.INBOX)}
           maxWidth="780px"
           subtitle="Reply quickly and keep your matches warm"
-          onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+          hideMobileNav={!!selectedMatch || !!selectedVideoRoom}
+          onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
           onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
           onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
@@ -901,7 +930,7 @@ function App() {
           navActions={mainNav(VIEW_KEYS.PROFILE)}
           maxWidth="620px"
           subtitle="Manage your profile and matching preferences"
-          onBrandClick={() => setCurrentView(VIEW_KEYS.PEOPLE)}
+          onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
           onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
           onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
@@ -923,6 +952,8 @@ function App() {
       return wrapWithDock(<ExplorePage user={user} onBack={() => setCurrentView(VIEW_KEYS.PEOPLE)} onSelectProfile={() => {}} />);
     case VIEW_KEYS.HELP:
       return wrapWithDock(<HelpPage onBack={() => setCurrentView(VIEW_KEYS.LANDING)} />);
+    case VIEW_KEYS.COACHING:
+      return wrapWithDock(<CoachingPage user={user} profile={profile} onBack={() => setCurrentView(user ? VIEW_KEYS.HOME : VIEW_KEYS.LANDING)} onNavigate={navigateTo} />);
     case VIEW_KEYS.TERMS:
       return wrapWithDock(<TermsPage onBack={() => setCurrentView(VIEW_KEYS.LANDING)} />);
     case VIEW_KEYS.PRIVACY:

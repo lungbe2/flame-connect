@@ -232,7 +232,7 @@ export default function VideoRoomPage({
             {participants.length === 0 && (
               <div className="video-room-status-card">
                 <h3>Joining room...</h3>
-                <p>We’re preparing your camera, microphone, and secure room access.</p>
+                <p>We're preparing your camera, microphone, and secure room access.</p>
               </div>
             )}
           </div>

@@ -79,7 +79,7 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
             Find chemistry that feels effortless.
           </h1>
           <p style={{ fontSize: '18px', color: '#60657b', lineHeight: 1.7, marginBottom: '24px', maxWidth: '580px' }}>
-            Discover nearby singles by intent, live status, and vibe. From fun chats to serious relationships, Flame Connect helps you move faster.
+            Discover nearby singles by intent, live status, and vibe. From fun chats to serious relationships, Flame Connect helps you move faster with messaging, private video calls, and guided support when you want it.
           </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
@@ -129,6 +129,96 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
         </aside>
       </section>
 
+      <section style={{ maxWidth: '1180px', margin: '10px auto', padding: '0 10px' }}>
+        <div
+          style={{
+            borderRadius: '24px',
+            border: '1px solid #ebeef5',
+            background: 'linear-gradient(135deg, #1d2333 0%, #2b3248 52%, #40263c 100%)',
+            color: '#fff',
+            padding: '24px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px'
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffb8c4', marginBottom: '10px' }}>Real-time connection</div>
+            <h3 style={{ margin: 0, fontSize: '28px', lineHeight: 1.1 }}>Chat, call, and connect in real time.</h3>
+            <p style={{ margin: '12px 0 0', color: '#d8dced', lineHeight: 1.65 }}>
+              Start with messages, move to private video calls, and build trust with profile photo checks and adults-only safety rules.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
+              <strong>Private messaging</strong>
+              <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>Warm up the conversation before you meet.</div>
+            </div>
+            <div style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
+              <strong>Video calls</strong>
+              <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>Go face to face when the vibe feels right.</div>
+            </div>
+            <div style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
+              <strong>Safer profiles</strong>
+              <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>Face-photo checks help keep discovery more genuine.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ maxWidth: '1180px', margin: '10px auto', padding: '0 10px' }}>
+        <div
+          style={{
+            borderRadius: '24px',
+            border: '1px solid #ebeef5',
+            background: 'linear-gradient(140deg, #fff7f8 0%, #ffffff 55%, #fff0f4 100%)',
+            padding: '24px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '16px',
+            alignItems: 'start'
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#e83f5b', marginBottom: '10px' }}>VIP support</div>
+            <h3 style={{ margin: 0, fontSize: '28px', lineHeight: 1.1, color: '#1f2230' }}>Qualified dating coaches are available by request.</h3>
+            <p style={{ margin: '12px 0 0', color: '#60657b', lineHeight: 1.7 }}>
+              Members who want sharper profile advice, conversation guidance, or dating tips can request one-on-one help from our coaching team.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div style={{ borderRadius: '16px', border: '1px solid #f1d7dd', background: '#fff', padding: '14px' }}>
+              <strong style={{ color: '#1f2230' }}>How it works</strong>
+              <div style={{ color: '#60657b', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>
+                Ask for dating tips, profile feedback, or VIP-style guidance whenever you need extra support.
+              </div>
+            </div>
+            <div style={{ borderRadius: '16px', border: '1px solid #f1d7dd', background: '#fff', padding: '14px' }}>
+              <strong style={{ color: '#1f2230' }}>Request coaching</strong>
+              <div style={{ color: '#60657b', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>
+                Email <a href="mailto:coaching@flameconnect.co.za?subject=Dating%20Coach%20Request" style={{ color: '#e83f5b', fontWeight: 700, textDecoration: 'none' }}>coaching@flameconnect.co.za</a> or open the coaching request page to send the team more detail.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate?.(VIEW_KEYS.COACHING)}
+              style={{
+                background: 'linear-gradient(135deg, #e83f5b 0%, #ff6a63 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '14px 18px',
+                borderRadius: '999px',
+                cursor: 'pointer',
+                fontWeight: 800,
+                boxShadow: '0 10px 20px rgba(232,63,91,0.2)'
+              }}
+            >
+              Open coaching page
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section style={{ maxWidth: '1180px', margin: '8px auto 0', padding: '0 10px' }}>
         <div
           style={{
@@ -161,7 +251,7 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
       </section>
 
       <section style={{ maxWidth: '1180px', margin: '0 auto', padding: '0 10px' }}>
-        <SiteFooter onTermsClick={() => onNavigate?.(VIEW_KEYS.TERMS)} onPrivacyClick={() => onNavigate?.(VIEW_KEYS.PRIVACY)} />
+        <SiteFooter onCoachingClick={() => onNavigate?.(VIEW_KEYS.COACHING)} onTermsClick={() => onNavigate?.(VIEW_KEYS.TERMS)} onPrivacyClick={() => onNavigate?.(VIEW_KEYS.PRIVACY)} />
       </section>
     </div>
   );

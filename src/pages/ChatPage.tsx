@@ -178,7 +178,7 @@ export default function ChatPage({ match, currentUser, onBack, onStartVideoCall 
       }}
     >
       <div className="chat-page-header" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', borderBottom: '1px solid #ecf0f7', background: '#fbfcff' }}>
-        <button onClick={onBack} style={{ padding: '8px 14px', cursor: 'pointer', background: '#fff', border: '1px solid #e2e7f1', color: '#2b3044', borderRadius: '999px' }}>
+        <button className="chat-header-back" onClick={onBack} style={{ padding: '8px 14px', cursor: 'pointer', background: '#fff', border: '1px solid #e2e7f1', color: '#2b3044', borderRadius: '999px' }}>
           Back
         </button>
         <button
@@ -210,29 +210,33 @@ export default function ChatPage({ match, currentUser, onBack, onStartVideoCall 
             <div style={{ fontSize: '12px', color: '#7e859a' }}>{match?.is_online ? 'Online now' : 'Conversation'}</div>
           </div>
         </button>
-        <button
-          type="button"
-          onClick={onStartVideoCall}
-          style={{
-            border: '1px solid #ffd7df',
-            background: 'linear-gradient(135deg, #fff2f5 0%, #fff8f8 100%)',
-            color: '#d93e5b',
-            borderRadius: '999px',
-            padding: '8px 12px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: 700
-          }}
-        >
-          Video call
-        </button>
-        <button
-          type="button"
-          onClick={reportUser}
-          style={{ marginLeft: 'auto', border: '1px solid #f0c8cf', background: '#fff5f7', color: '#d93e5b', borderRadius: '999px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
-        >
-          Report
-        </button>
+        <div className="chat-page-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="chat-header-action"
+            onClick={onStartVideoCall}
+            style={{
+              border: '1px solid #ffd7df',
+              background: 'linear-gradient(135deg, #fff2f5 0%, #fff8f8 100%)',
+              color: '#d93e5b',
+              borderRadius: '999px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 700
+            }}
+          >
+            Video call
+          </button>
+          <button
+            type="button"
+            className="chat-header-action"
+            onClick={reportUser}
+            style={{ border: '1px solid #f0c8cf', background: '#fff5f7', color: '#d93e5b', borderRadius: '999px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+          >
+            Report
+          </button>
+        </div>
       </div>
 
       {showProfileCard && (

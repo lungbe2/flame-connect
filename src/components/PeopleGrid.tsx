@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { formatMoodWithEmoji } from '../config/mood';
 
-export default function PeopleGrid({ users, onLike, onSelectProfile }) {
+export default function PeopleGrid({ users, onLike, onSelectProfile, emptyTitle, emptyCopy }) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
@@ -61,8 +61,8 @@ export default function PeopleGrid({ users, onLike, onSelectProfile }) {
   if (visibleUsers.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 20px', border: '1px solid #e8ebf3', borderRadius: '18px', background: '#fff' }}>
-        <h2 style={{ marginTop: 0 }}>No matches to show yet</h2>
-        <p style={{ color: '#636b82' }}>Complete your profile details and check back in a few minutes.</p>
+        <h2 style={{ marginTop: 0 }}>{emptyTitle || 'No new profiles to show yet'}</h2>
+        <p style={{ color: '#636b82' }}>{emptyCopy || 'Check back soon as more people join Flame Connect.'}</p>
       </div>
     );
   }

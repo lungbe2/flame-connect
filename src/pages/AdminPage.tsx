@@ -199,6 +199,36 @@ export default function AdminPage({ user, onBack }: AdminPageProps) {
     setWorkingUserId(null);
   };
 
+  const deleteUser = async (targetUser: any) => {
+    if (!targetUser?.id) {
+      return;
+    }
+
+    const label = targetUser.display_name || targetUser.email || 'this user';
+    const confirmation = window.prompt(`Type DELETE to permanently remove ${label} and all related app data.`, '');
+
+    if (confirmation !== 'DELETE') {
+      return;
+    }
+
+    setWorkingUserId(targetUser.id);
+    setError('');
+
+    const { error: rpcError } = await supabase.rpc('admin_delete_user', {
+      target_user_id: targetUser.id
+    });
+
+    if (rpcError) {
+      setError(rpcError.message);
+      setWorkingUserId(null);
+      return;
+    }
+
+    await fetchUsers();
+    await fetchReports();
+    setWorkingUserId(null);
+  };
+
   const handleUnlock = () => {
     if (!requiredPin) {
       setIsUnlocked(true);
@@ -423,6 +453,22 @@ export default function AdminPage({ user, onBack }: AdminPageProps) {
                         }}
                       >
                         {workingUserId === row.id ? 'Saving...' : row.is_premium ? 'Remove Premium' : 'Make Premium'}
+                      </button>
+
+                      <button
+                        onClick={() => deleteUser(row)}
+                        disabled={workingUserId === row.id}
+                        style={{
+                          border: 'none',
+                          borderRadius: '999px',
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          color: '#fff',
+                          fontWeight: 700,
+                          background: '#7f1d1d'
+                        }}
+                      >
+                        {workingUserId === row.id ? 'Deleting...' : 'Delete User'}
                       </button>
                     </div>
                   </td>
