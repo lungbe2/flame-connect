@@ -1,5 +1,4 @@
 import React from 'react';
-import SiteFooter from './SiteFooter';
 
 type NavAction = {
   key: string;
@@ -79,15 +78,6 @@ export default function AppShell({ children, navActions, maxWidth = '1200px', su
         </div>
       </div>
       {children}
-      <div
-        style={{
-          width: 'min(1180px, calc(100vw - 20px))',
-          marginLeft: '50%',
-          transform: 'translateX(-50%)'
-        }}
-      >
-        <SiteFooter onTermsClick={onTermsClick} onPrivacyClick={onPrivacyClick} />
-      </div>
       <nav className="app-shell-mobile-nav">
         {navActions.map((action) => (
           <button key={`mobile-${action.key}`} type="button" onClick={action.onClick} className={`app-shell-mobile-btn ${action.active ? 'active' : ''}`}>

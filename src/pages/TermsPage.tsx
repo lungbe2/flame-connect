@@ -1,5 +1,4 @@
 import React from 'react';
-import SiteFooter from '../components/SiteFooter';
 
 export default function TermsPage({ onBack }) {
   return (
@@ -62,8 +61,6 @@ export default function TermsPage({ onBack }) {
           <strong>Last updated:</strong> April 2026
         </p>
       </div>
-
-      <SiteFooter />
     </div>
   );
 }

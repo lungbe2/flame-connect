@@ -1,5 +1,4 @@
 import React from 'react';
-import SiteFooter from '../components/SiteFooter';
 
 export default function PrivacyPage({ onBack }) {
   return (
@@ -71,8 +70,6 @@ export default function PrivacyPage({ onBack }) {
           <strong>Last updated:</strong> April 2026
         </p>
       </div>
-
-      <SiteFooter />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { supabase } from './lib/supabase';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -21,7 +21,10 @@ import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
 import PeopleHub from './components/PeopleHub';
 import { VIEW_KEYS } from './config/navigation';
-import { DEMO_PROFILES } from './config/demoProfiles';
+import { validateProfilePhotoFace } from './lib/faceValidation';
+import { ensureDirectCallRoom } from './lib/liveRooms';
+
+const VideoRoomPage = lazy(() => import('./pages/VideoRoomPage'));
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
@@ -83,19 +86,6 @@ const isRecentlyOnline = (record: any) => {
 };
 
 const sortUserPair = (a: string, b: string) => [a, b].sort();
-const isDemoId = (id?: string) => !!id && id.startsWith('demo-');
-const pickMixedDemoProfiles = (count: number) => {
-  const women = DEMO_PROFILES.filter((entry) => entry.gender === 'female');
-  const men = DEMO_PROFILES.filter((entry) => entry.gender === 'male');
-  const mixed: any[] = [];
-  const max = Math.max(women.length, men.length);
-  for (let i = 0; i < max; i += 1) {
-    if (women[i]) mixed.push(women[i]);
-    if (men[i]) mixed.push(men[i]);
-  }
-  return mixed.slice(0, count);
-};
-
 function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -108,8 +98,10 @@ function App() {
   const [chatRequests, setChatRequests] = useState<any[]>([]);
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [selectedVideoRoom, setSelectedVideoRoom] = useState<any>(null);
   const [showMatchModal, setShowMatchModal] = useState<any>(null);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoFaceStatus, setPhotoFaceStatus] = useState<'pending' | 'approved' | 'flagged'>('pending');
   const [uploading, setUploading] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
@@ -191,9 +183,16 @@ function App() {
     if (currentUser) {
       const { data: profileData } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
 
-      if (profileData && profileData.age) {
+      if (
+        profileData &&
+        profileData.age &&
+        Array.isArray(profileData.photos) &&
+        profileData.photos.length > 0 &&
+        profileData.photo_face_status === 'approved'
+      ) {
         setProfile(profileData);
         setPhotos(profileData.photos || []);
+        setPhotoFaceStatus(profileData.photo_face_status || 'pending');
         setDisplayName(profileData.display_name || '');
         setAge(profileData.age || '');
         setGender(profileData.gender || '');
@@ -210,6 +209,21 @@ function App() {
         await fetchUnreadCounts(currentUser.id);
         setCurrentView(VIEW_KEYS.PEOPLE);
       } else {
+        if (profileData) {
+          setProfile(profileData);
+          setPhotos(profileData.photos || []);
+          setPhotoFaceStatus(profileData.photo_face_status || 'pending');
+          setDisplayName(profileData.display_name || '');
+          setAge(profileData.age || '');
+          setGender(profileData.gender || '');
+          setLookingFor(profileData.looking_for || '');
+          setMood(profileData.mood || '');
+          setBio(profileData.bio || '');
+          setLocation(profileData.location_city || profileData.location || '');
+          if (profileData.latitude && profileData.longitude) {
+            setCoords({ lat: profileData.latitude, lng: profileData.longitude });
+          }
+        }
         setShowOnboarding(true);
         setCurrentView(VIEW_KEYS.ONBOARDING);
       }
@@ -403,7 +417,13 @@ function App() {
       );
       const excludedIds = new Set<string>([...likedIds, ...matchedIds, currentUserId]);
 
-      const filteredProfiles = data.filter((entry) => !excludedIds.has(entry.id));
+      const filteredProfiles = data.filter(
+        (entry) =>
+          !excludedIds.has(entry.id) &&
+          Array.isArray(entry.photos) &&
+          entry.photos.length > 0 &&
+          entry.photo_face_status === 'approved'
+      );
       const withPresenceAndDistance = filteredProfiles.map((entry) => {
         const distance =
           myCoordinates && entry.latitude && entry.longitude
@@ -424,45 +444,14 @@ function App() {
         }))
         .sort((a, b) => b.discovery_score - a.discovery_score);
 
-      const minTarget = 8;
-      if (ranked.length >= minTarget) {
-        setUsers(ranked);
-        return;
-      }
-
-      const existingIds = new Set(ranked.map((entry) => entry.id));
-      const demoRows = pickMixedDemoProfiles(12).filter((entry) => !existingIds.has(entry.id)).map((entry, index) => ({
-        ...entry,
-        is_demo: true,
-        is_online: index % 2 === 0,
-        last_seen: new Date(Date.now() - index * 12 * 60 * 1000).toISOString(),
-        distance_km: 5 + index * 3,
-        profile_completion_score: 100,
-        discovery_score: 35 - index
-      }));
-
-      const padded = [...ranked, ...demoRows].slice(0, minTarget);
-      setUsers(padded);
+      setUsers(ranked);
       return;
     }
-    const demoOnly = pickMixedDemoProfiles(8).map((entry, index) => ({
-      ...entry,
-      is_demo: true,
-      is_online: index % 2 === 0,
-      last_seen: new Date(Date.now() - index * 12 * 60 * 1000).toISOString(),
-      distance_km: 5 + index * 3,
-      profile_completion_score: 100,
-      discovery_score: 30 - index
-    }));
-    setUsers(demoOnly);
+    setUsers([]);
   };
 
   const handleLike = async (likedUserId: string) => {
     if (!user) {
-      return;
-    }
-    if (isDemoId(likedUserId)) {
-      setUsers((prev) => prev.filter((entry) => entry.id !== likedUserId));
       return;
     }
 
@@ -516,10 +505,8 @@ function App() {
     if (!user || !targetUser?.id) {
       return;
     }
-    if (isDemoId(targetUser.id)) {
-      window.alert('This is a demo profile for UI testing only.');
-      return;
-    }
+
+    setSelectedVideoRoom(null);
 
     const { data: existingMatches } = await supabase
       .from('matches')
@@ -566,24 +553,92 @@ function App() {
     setCurrentView(VIEW_KEYS.INBOX);
   };
 
+  const startDirectVideoCall = async (targetUser: any) => {
+    if (!user || !targetUser?.id) {
+      return;
+    }
+
+    try {
+      const session = await ensureDirectCallRoom({
+        currentUserId: user.id,
+        currentUserName: profile?.display_name || user.email?.split('@')[0] || 'You',
+        targetUserId: targetUser.id,
+        targetUserName: targetUser.display_name || targetUser.email?.split('@')[0] || 'Match'
+      });
+
+      setSelectedVideoRoom({
+        ...session,
+        targetProfile: targetUser
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Unable to start the video call right now.');
+    }
+  };
+
   const uploadPhoto = async (file: File | undefined) => {
     if (!file || !user) {
       return;
     }
 
     setUploading(true);
-    const fileName = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('profile-photos').upload(fileName, file);
+    setMessage('');
 
-    if (!error) {
+    try {
+      const validation = await validateProfilePhotoFace(file);
+
+      if (!validation.hasFace) {
+        setPhotos([]);
+        setPhotoFaceStatus('flagged');
+        await supabase
+          .from('profiles')
+          .update({
+            photos: [],
+            photo_face_status: 'flagged',
+            photo_face_count: 0,
+            photo_face_confidence: null,
+            photo_face_checked_at: new Date().toISOString(),
+            photo_face_review_note: 'No detectable face found in uploaded profile photo.'
+          })
+          .eq('id', user.id);
+        setMessage('Upload a clear face photo. Photos without a detectable face are not allowed.');
+        return;
+      }
+
+      const extension = file.name.split('.').pop() || 'jpg';
+      const fileName = `${user.id}/${Date.now()}.${extension}`;
+      const { error } = await supabase.storage.from('profile-photos').upload(fileName, file, { upsert: true });
+
+      if (error) {
+        setMessage(`Photo upload failed: ${error.message}`);
+        return;
+      }
+
       const {
         data: { publicUrl }
       } = supabase.storage.from('profile-photos').getPublicUrl(fileName);
-      setPhotos([publicUrl]);
-      setMessage('Photo uploaded.');
-    }
 
-    setUploading(false);
+      const nextPhotos = [publicUrl];
+      setPhotos(nextPhotos);
+      setPhotoFaceStatus('approved');
+
+      await supabase
+        .from('profiles')
+        .update({
+          photos: nextPhotos,
+          photo_face_status: 'approved',
+          photo_face_count: validation.faceCount,
+          photo_face_confidence: validation.confidence,
+          photo_face_checked_at: new Date().toISOString(),
+          photo_face_review_note: 'Automatic face detection passed.'
+        })
+        .eq('id', user.id);
+
+      setMessage('Photo uploaded and face check passed.');
+    } catch (error: any) {
+      setMessage(error?.message || 'Photo validation failed. Please try a different image.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const useCurrentLocation = async () => {
@@ -630,6 +685,7 @@ function App() {
     if (!bio || bio.trim().length < 20) mandatoryMissing.push('bio (20+ chars)');
     if (!location.trim()) mandatoryMissing.push('location');
     if (!photos || photos.length === 0) mandatoryMissing.push('at least 1 photo');
+    if (photoFaceStatus !== 'approved') mandatoryMissing.push('a clear face photo');
 
     if (mandatoryMissing.length > 0) {
       setMessage(`Complete required fields: ${mandatoryMissing.join(', ')}`);
@@ -644,7 +700,8 @@ function App() {
       mood,
       bio,
       location_city: location,
-      photos
+      photos,
+      photo_face_status: photoFaceStatus
     };
 
     if (coords) {
@@ -667,6 +724,7 @@ function App() {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
+    setSelectedVideoRoom(null);
     setCurrentView(VIEW_KEYS.LANDING);
   };
 
@@ -713,7 +771,7 @@ function App() {
   }
 
   const dockEligibleViews = [VIEW_KEYS.PEOPLE, VIEW_KEYS.INBOX, VIEW_KEYS.PROFILE, VIEW_KEYS.SETTINGS, VIEW_KEYS.NOTIFICATIONS, VIEW_KEYS.EXPLORE, VIEW_KEYS.HELP, VIEW_KEYS.TERMS, VIEW_KEYS.PRIVACY, VIEW_KEYS.UPGRADE];
-  const shouldShowFloatingDock = !!user && dockEligibleViews.includes(currentView as any);
+  const shouldShowFloatingDock = !!user && dockEligibleViews.includes(currentView as any) && !(currentView === VIEW_KEYS.INBOX && !!selectedMatch);
 
   const wrapWithDock = (content: React.ReactNode) => (
     <>
@@ -770,6 +828,7 @@ function App() {
           bio={bio}
           setBio={setBio}
           photos={photos}
+          photoFaceStatus={photoFaceStatus}
           uploading={uploading}
           onPhotoUpload={(event) => uploadPhoto(event.target.files?.[0])}
           onUseCurrentLocation={useCurrentLocation}
@@ -803,8 +862,25 @@ function App() {
             <h2 style={{ margin: '0 0 4px', fontSize: '22px', color: '#1f2230' }}>Your Conversations</h2>
             <p style={{ margin: 0, color: '#6b7288', fontSize: '14px' }}>Open a chat and keep the momentum going.</p>
           </section>
-          {selectedMatch ? (
-            <ChatPage match={selectedMatch} currentUser={user} onBack={() => setSelectedMatch(null)} />
+          {selectedVideoRoom ? (
+            <Suspense
+              fallback={
+                <div style={{ border: '1px solid #e8ebf3', borderRadius: '18px', background: '#fff', padding: '28px', textAlign: 'center', color: '#6f7690' }}>
+                  Loading video room...
+                </div>
+              }
+            >
+              <VideoRoomPage
+                roomName={selectedVideoRoom.roomName}
+                roomTitle={selectedVideoRoom.title}
+                requestedRole={selectedVideoRoom.requestedRole}
+                currentUser={user}
+                targetProfile={selectedVideoRoom.targetProfile}
+                onBack={() => setSelectedVideoRoom(null)}
+              />
+            </Suspense>
+          ) : selectedMatch ? (
+            <ChatPage match={selectedMatch} currentUser={user} onBack={() => setSelectedMatch(null)} onStartVideoCall={() => startDirectVideoCall(selectedMatch)} />
           ) : (
             <Inbox
               matches={matches}

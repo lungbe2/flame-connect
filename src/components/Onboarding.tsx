@@ -17,6 +17,7 @@ export default function Onboarding({
   bio,
   setBio,
   photos,
+  photoFaceStatus,
   uploading,
   onPhotoUpload,
   onUseCurrentLocation,
@@ -140,6 +141,19 @@ export default function Onboarding({
               {uploading ? 'Uploading...' : 'Upload photo'}
             </label>
           </div>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#7c8399', lineHeight: 1.5 }}>
+            Use a clear face photo. Profiles without a real personal photo will not complete setup.
+          </div>
+          {photoFaceStatus === 'flagged' && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#d93e5b', lineHeight: 1.5 }}>
+              We could not detect a real face in that image. Please upload a clear personal face photo.
+            </div>
+          )}
+          {photoFaceStatus === 'approved' && photos.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#2e8457', lineHeight: 1.5 }}>
+              Face check passed. Your profile photo is ready.
+            </div>
+          )}
         </div>
 
         <button

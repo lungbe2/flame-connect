@@ -6,6 +6,23 @@ import TurnstileWidget, { type TurnstileWidgetRef } from './components/Turnstile
 const ADMIN_EMAIL = 'lungbe2@gmail.com';
 const MFA_ISSUER = 'Flame Connect';
 
+const getQrCodePayload = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { type: 'none' as const, value: '' };
+  }
+
+  if (trimmed.startsWith('<svg')) {
+    return { type: 'svg' as const, value: trimmed };
+  }
+
+  if (trimmed.startsWith('data:image')) {
+    return { type: 'image' as const, value: trimmed };
+  }
+
+  return { type: 'image' as const, value: `data:image/svg+xml;utf8,${encodeURIComponent(trimmed)}` };
+};
+
 export default function AdminPortalApp() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -259,7 +276,7 @@ export default function AdminPortalApp() {
   }
 
   if (accessStep === 'enroll' || accessStep === 'verify') {
-    const qrCodeDataUrl = qrCode ? `data:image/svg+xml;utf8,${encodeURIComponent(qrCode)}` : '';
+    const qrCodePayload = getQrCodePayload(qrCode);
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '20px' }}>
         <div style={{ width: 'min(560px, 100%)', background: '#fff', border: '1px solid #e8ebf3', borderRadius: '18px', padding: '24px' }}>
@@ -271,9 +288,17 @@ export default function AdminPortalApp() {
               <p style={{ color: '#667089', lineHeight: 1.6 }}>
                 Scan this QR code with Google Authenticator, Microsoft Authenticator, Authy, or another TOTP app. Then enter the 6-digit code to finish setup.
               </p>
-              {qrCodeDataUrl && (
+              {qrCodePayload.type !== 'none' && (
                 <div style={{ display: 'grid', placeItems: 'center', padding: '14px', borderRadius: '16px', background: '#fff7f9', border: '1px solid #f3d4da', marginBottom: '14px' }}>
-                  <img src={qrCodeDataUrl} alt="Admin MFA QR code" style={{ width: '220px', height: '220px', maxWidth: '100%' }} />
+                  {qrCodePayload.type === 'svg' ? (
+                    <div
+                      aria-label="Admin MFA QR code"
+                      style={{ width: '220px', height: '220px', maxWidth: '100%', display: 'grid', placeItems: 'center' }}
+                      dangerouslySetInnerHTML={{ __html: qrCodePayload.value }}
+                    />
+                  ) : (
+                    <img src={qrCodePayload.value} alt="Admin MFA QR code" style={{ width: '220px', height: '220px', maxWidth: '100%' }} />
+                  )}
                 </div>
               )}
               <div style={{ marginBottom: '14px', padding: '12px 14px', borderRadius: '12px', background: '#f8f9fd', border: '1px solid #e2e7f2' }}>
