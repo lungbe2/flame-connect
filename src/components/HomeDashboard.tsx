@@ -28,6 +28,14 @@ export default function HomeDashboard({
 }) {
   const profileName = profile?.display_name || 'there';
   const topMatch = matches[0] || chatRequests[0] || null;
+  const nearbyUsers = users.filter((entry) => typeof entry.distance_km === 'number');
+  const closestDistance = nearbyUsers.length > 0 ? Math.min(...nearbyUsers.map((entry) => entry.distance_km)) : null;
+  const profilePhotoCount = Array.isArray(profile?.photos) ? profile.photos.length : 0;
+  const nextBestMove = topMatch
+    ? `You already have ${topMatch.display_name || topMatch.email?.split('@')[0] || 'a connection'} ready for a deeper conversation.`
+    : users.length > 0
+      ? 'Fresh profiles are available now. Browse People and start a new connection.'
+      : 'Keep your profile polished and check back for new nearby singles.';
 
   return (
     <div className="home-dashboard">
@@ -51,6 +59,14 @@ export default function HomeDashboard({
               </button>
             )}
           </div>
+          <div className="home-dashboard-distance">
+            <strong>Location-aware matching</strong>
+            <span>
+              {typeof closestDistance === 'number'
+                ? `Your closest visible match is about ${closestDistance} km away.`
+                : 'Turn on your location in onboarding/profile to see how far people are from you.'}
+            </span>
+          </div>
         </div>
         <div className="home-dashboard-hero-stats">
           <div>
@@ -65,7 +81,38 @@ export default function HomeDashboard({
             <span>New people nearby</span>
             <strong>{users.length}</strong>
           </div>
+          <div>
+            <span>Closest distance</span>
+            <strong>{typeof closestDistance === 'number' ? `${closestDistance} km` : 'Soon'}</strong>
+          </div>
         </div>
+      </section>
+
+      <section className="home-dashboard-feature-strip">
+        <article style={cardStyle} className="home-dashboard-feature-card">
+          <div className="home-dashboard-feature-kicker">Today&apos;s best move</div>
+          <h3>Keep the energy moving.</h3>
+          <p>{nextBestMove}</p>
+        </article>
+
+        <article style={cardStyle} className="home-dashboard-feature-card">
+          <div className="home-dashboard-feature-kicker">Profile strength</div>
+          <h3>{profilePhotoCount > 0 ? 'You are ready to be seen.' : 'Add a strong first impression.'}</h3>
+          <p>
+            {profilePhotoCount > 0
+              ? 'Your profile photo is live. Keep your bio, mood, and location current so distance-based discovery works better.'
+              : 'Upload a clear face photo so discovery, moderation, and video-first trust all work in your favour.'}
+          </p>
+        </article>
+
+        <article style={cardStyle} className="home-dashboard-feature-card home-dashboard-feature-card-accent">
+          <div className="home-dashboard-feature-kicker">VIP support</div>
+          <h3>Coaching is one click away.</h3>
+          <p>Need sharper messages or profile advice? Open VIP coaching whenever you want guided help.</p>
+          <button type="button" className="home-dashboard-inline-btn" onClick={onOpenCoaching}>
+            Open coaching
+          </button>
+        </article>
       </section>
 
       <section className="home-dashboard-grid">
@@ -128,6 +175,21 @@ export default function HomeDashboard({
           </p>
           <button type="button" className="home-dashboard-inline-btn" onClick={onOpenCoaching}>
             Open coaching page
+          </button>
+        </article>
+
+        <article style={cardStyle} className="home-dashboard-panel home-dashboard-panel-accent">
+          <div className="home-dashboard-panel-head">
+            <h3>Close to you</h3>
+            <span>{nearbyUsers.length}</span>
+          </div>
+          <p>
+            {nearbyUsers.length > 0
+              ? `Distance is already active. People cards and chat previews can show how many kilometres away someone is.`
+              : 'Distance matching is supported, but it needs your location plus a match who has also shared theirs.'}
+          </p>
+          <button type="button" className="home-dashboard-inline-btn" onClick={onOpenPeople}>
+            See nearby people
           </button>
         </article>
       </section>

@@ -2,6 +2,49 @@ import React from 'react';
 import { VIEW_KEYS } from '../config/navigation';
 import SiteFooter from './SiteFooter';
 
+const trustHighlights = [
+  {
+    title: 'Meet people nearby',
+    copy: 'See singles close to your area when both sides have shared location.'
+  },
+  {
+    title: 'Private chat and video',
+    copy: 'Start with messages and move to private video calls when the connection feels right.'
+  },
+  {
+    title: 'Safer profile discovery',
+    copy: 'Adults-only signup, profile photo checks, and moderation tools help keep things more genuine.'
+  },
+  {
+    title: 'Coaching when you want it',
+    copy: 'Request dating tips, profile guidance, and one-on-one support from our coaching team.'
+  }
+];
+
+const howItWorks = [
+  {
+    step: '01',
+    title: 'Build your profile',
+    copy: 'Upload a clear photo, share your vibe, and let people know what you are looking for.'
+  },
+  {
+    step: '02',
+    title: 'Discover nearby singles',
+    copy: 'Browse people by distance, mood, intent, and live activity instead of guessing blindly.'
+  },
+  {
+    step: '03',
+    title: 'Chat, call, and grow',
+    copy: 'Move from messages to video calls, and ask for coaching support when you need a confidence boost.'
+  }
+];
+
+const coachingFeatures = [
+  'Profile feedback and bio polish',
+  'Conversation and first-date tips',
+  'Support from qualified dating coaches'
+];
+
 export default function LandingPage({ onLoginClick, onSignupClick, onNavigate }) {
   return (
     <div className="landing-glow" style={{ paddingBottom: '14px' }}>
@@ -73,13 +116,13 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
           }}
         >
           <div style={{ display: 'inline-block', padding: '7px 13px', borderRadius: '999px', background: '#fff', border: '1px solid #f3ccd4', color: '#e83f5b', fontWeight: 700, marginBottom: '18px' }}>
-            Trendy dating. Better matches.
+            Join free. Meet real singles. Get coaching if you want it.
           </div>
           <h1 style={{ fontSize: 'clamp(34px, 5vw, 60px)', lineHeight: 0.98, letterSpacing: '-0.04em', margin: '0 0 14px', color: '#1e1f2c' }}>
-            Find chemistry that feels effortless.
+            Meet real singles near you without the chaos.
           </h1>
           <p style={{ fontSize: '18px', color: '#60657b', lineHeight: 1.7, marginBottom: '24px', maxWidth: '580px' }}>
-            Discover nearby singles by intent, live status, and vibe. From fun chats to serious relationships, Flame Connect helps you move faster with messaging, private video calls, and guided support when you want it.
+            Flame Connect helps you match by vibe, chat in private, move into video calls when the time is right, and request qualified dating support when you want an extra edge.
           </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
@@ -95,10 +138,10 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
                 boxShadow: '0 12px 24px rgba(232,63,91,0.27)'
               }}
             >
-              Start now
+              Join free today
             </button>
             <button onClick={onLoginClick} style={{ background: '#fff', color: '#202235', border: '1px solid #e8ebf3', padding: '14px 24px', borderRadius: '999px', cursor: 'pointer', fontWeight: 700 }}>
-              I have an account
+              Log in
             </button>
           </div>
         </div>
@@ -116,15 +159,17 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
           }}
         >
           <div>
-            <div style={{ fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffb6c0', marginBottom: '10px' }}>Live Activity</div>
-            <div style={{ fontSize: '46px', fontWeight: 800, lineHeight: 1 }}>9,000+</div>
-            <div style={{ fontSize: '18px', color: '#d9dbe8', marginTop: '8px' }}>new conversations started this week</div>
+            <div style={{ fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffb6c0', marginBottom: '10px' }}>Why people choose it</div>
+            <div style={{ fontSize: '40px', fontWeight: 800, lineHeight: 1.05 }}>Built for genuine connection.</div>
+            <div style={{ fontSize: '17px', color: '#d9dbe8', marginTop: '10px', lineHeight: 1.65 }}>
+              Less noise, clearer intentions, and smoother next steps from chat to coaching.
+            </div>
           </div>
           <div className="trend-float" style={{ padding: '14px', borderRadius: '14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
-            "Found someone genuine in my city within 3 days."
+            Private messaging and video calls in one flow, so you do not need to jump between apps.
           </div>
           <div className="trend-float-delayed" style={{ padding: '14px', borderRadius: '14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
-            "The mood filters helped me match exactly what I wanted."
+            Coaching is available when you want help with your profile, confidence, or conversations.
           </div>
         </aside>
       </section>
@@ -144,24 +189,18 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
         >
           <div>
             <div style={{ fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ffb8c4', marginBottom: '10px' }}>Real-time connection</div>
-            <h3 style={{ margin: 0, fontSize: '28px', lineHeight: 1.1 }}>Chat, call, and connect in real time.</h3>
+            <h3 style={{ margin: 0, fontSize: '28px', lineHeight: 1.1 }}>From first message to face-to-face.</h3>
             <p style={{ margin: '12px 0 0', color: '#d8dced', lineHeight: 1.65 }}>
-              Start with messages, move to private video calls, and build trust with profile photo checks and adults-only safety rules.
+              Start with messages, move to private video calls, and build trust with adults-only rules, face-photo checks, and moderation support.
             </p>
           </div>
           <div style={{ display: 'grid', gap: '12px' }}>
-            <div style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
-              <strong>Private messaging</strong>
-              <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>Warm up the conversation before you meet.</div>
-            </div>
-            <div style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
-              <strong>Video calls</strong>
-              <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>Go face to face when the vibe feels right.</div>
-            </div>
-            <div style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
-              <strong>Safer profiles</strong>
-              <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>Face-photo checks help keep discovery more genuine.</div>
-            </div>
+            {trustHighlights.map((item) => (
+              <div key={item.title} style={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)', padding: '14px' }}>
+                <strong>{item.title}</strong>
+                <div style={{ color: '#d8dced', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>{item.copy}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -185,6 +224,11 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
             <p style={{ margin: '12px 0 0', color: '#60657b', lineHeight: 1.7 }}>
               Members who want sharper profile advice, conversation guidance, or dating tips can request one-on-one help from our coaching team.
             </p>
+            <ul className="landing-coaching-list">
+              {coachingFeatures.map((feature) => (
+                <li key={feature}>{feature}</li>
+              ))}
+            </ul>
           </div>
           <div style={{ display: 'grid', gap: '12px' }}>
             <div style={{ borderRadius: '16px', border: '1px solid #f1d7dd', background: '#fff', padding: '14px' }}>
@@ -224,29 +268,20 @@ export default function LandingPage({ onLoginClick, onSignupClick, onNavigate })
           style={{
             borderRadius: '20px',
             border: '1px solid #ebeef5',
-            background: '#fff',
+            background: 'linear-gradient(145deg, #ffffff 0%, #fff8fa 100%)',
             padding: '18px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '10px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '12px'
           }}
         >
-          <div>
-            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Members</div>
-            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>2.1M+</div>
-          </div>
-          <div>
-            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Daily Likes</div>
-            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>410k</div>
-          </div>
-          <div>
-            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Verified Profiles</div>
-            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>89%</div>
-          </div>
-          <div>
-            <div style={{ color: '#a4a9bb', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg. Reply Time</div>
-            <div style={{ fontSize: '30px', fontWeight: 800, color: '#1f2230' }}>6m</div>
-          </div>
+          {howItWorks.map((item) => (
+            <div key={item.step} style={{ padding: '10px 4px' }}>
+              <div style={{ color: '#e83f5b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>{item.step}</div>
+              <div style={{ fontSize: '21px', fontWeight: 800, color: '#1f2230', marginTop: '8px' }}>{item.title}</div>
+              <div style={{ fontSize: '14px', lineHeight: 1.7, color: '#62687f', marginTop: '8px' }}>{item.copy}</div>
+            </div>
+          ))}
         </div>
       </section>
 

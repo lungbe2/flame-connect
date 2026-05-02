@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
 import AdminPage from './pages/AdminPage';
 import TurnstileWidget, { type TurnstileWidgetRef } from './components/TurnstileWidget';
@@ -39,29 +39,14 @@ export default function AdminPortalApp() {
   const [manualSecret, setManualSecret] = useState('');
   const [verifyCode, setVerifyCode] = useState('');
 
-  useEffect(() => {
-    const init = async () => {
-      const { data } = await supabase.auth.getSession();
-      const currentUser = data?.session?.user || null;
-      setUser(currentUser);
-      if (currentUser?.email === ADMIN_EMAIL) {
-        await syncAdminAccess(currentUser);
-      } else {
-        setAccessStep('login');
-      }
-      setLoading(false);
-    };
-    init();
-  }, []);
-
-  const resetMfaState = () => {
+  const resetMfaState = useCallback(() => {
     setTotpFactorId('');
     setQrCode('');
     setManualSecret('');
     setVerifyCode('');
-  };
+  }, []);
 
-  const syncAdminAccess = async (nextUser: any) => {
+  const syncAdminAccess = useCallback(async (nextUser: any) => {
     if (!nextUser || nextUser.email !== ADMIN_EMAIL) {
       setAccessStep('login');
       resetMfaState();
@@ -118,7 +103,22 @@ export default function AdminPortalApp() {
     setManualSecret(enrollData.totp.secret);
     setVerifyCode('');
     setAccessStep('enroll');
-  };
+  }, [resetMfaState]);
+
+  useEffect(() => {
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      const currentUser = data?.session?.user || null;
+      setUser(currentUser);
+      if (currentUser?.email === ADMIN_EMAIL) {
+        await syncAdminAccess(currentUser);
+      } else {
+        setAccessStep('login');
+      }
+      setLoading(false);
+    };
+    init();
+  }, [syncAdminAccess]);
 
   const completeMfaChallenge = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

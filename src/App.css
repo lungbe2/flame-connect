@@ -31,6 +31,10 @@ body {
   padding: 0 12px;
 }
 
+.app-shell-banner {
+  margin-bottom: 12px;
+}
+
 .brand-banner {
   position: relative;
   overflow: hidden;
@@ -46,7 +50,7 @@ body {
 
 .brand-banner-compact {
   margin-bottom: 12px;
-  padding: 10px 14px;
+  min-height: 188px;
   background:
     radial-gradient(circle at 18% 50%, rgba(255, 189, 117, 0.18) 0%, rgba(255, 189, 117, 0) 30%),
     linear-gradient(135deg, #6b091a 0%, #b3121f 34%, #ff5a1f 72%, #ffb546 100%);
@@ -56,6 +60,7 @@ body {
   width: 100%;
   display: block;
   object-fit: cover;
+  object-position: center center;
 }
 
 .brand-banner-hero .brand-banner-image {
@@ -64,10 +69,8 @@ body {
 
 .brand-banner-compact .brand-banner-image {
   width: 100%;
-  height: auto;
-  max-height: none;
-  border-radius: 16px;
-  box-shadow: 0 12px 30px rgba(48, 12, 21, 0.22);
+  min-height: 188px;
+  height: 100%;
 }
 
 .brand-banner-overlay {
@@ -119,11 +122,54 @@ body {
   gap: 16px;
 }
 
+.home-dashboard-feature-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.home-dashboard-feature-card {
+  padding: 18px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fffafc 100%);
+}
+
+.home-dashboard-feature-card-accent {
+  background:
+    radial-gradient(circle at top right, rgba(232, 63, 91, 0.14) 0%, rgba(232, 63, 91, 0) 40%),
+    linear-gradient(160deg, #fff7f9 0%, #ffffff 100%);
+}
+
+.home-dashboard-feature-kicker {
+  color: #e83f5b;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.home-dashboard-feature-card h3 {
+  margin: 10px 0 8px;
+  font-size: 24px;
+  line-height: 1.1;
+  color: #1f2437;
+}
+
+.home-dashboard-feature-card p {
+  margin: 0;
+  color: #60687f;
+  line-height: 1.7;
+  min-height: 78px;
+}
+
 .home-dashboard-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) 320px;
   gap: 18px;
   padding: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 117, 146, 0.14) 0%, rgba(255, 117, 146, 0) 30%),
+    linear-gradient(160deg, #ffffff 0%, #fff5f7 66%, #ffffff 100%);
 }
 
 .home-dashboard-kicker {
@@ -155,6 +201,27 @@ body {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 20px;
+}
+
+.home-dashboard-distance {
+  margin-top: 18px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #f1d8de;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.home-dashboard-distance strong {
+  color: #1f2437;
+  font-size: 14px;
+}
+
+.home-dashboard-distance span {
+  color: #666f86;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .home-dashboard-primary,
@@ -215,6 +282,12 @@ body {
 
 .home-dashboard-panel {
   padding: 18px;
+}
+
+.home-dashboard-panel-accent {
+  background:
+    radial-gradient(circle at top right, rgba(232, 63, 91, 0.12) 0%, rgba(232, 63, 91, 0) 34%),
+    linear-gradient(180deg, #fffdfd 0%, #fff6f8 100%);
 }
 
 .home-dashboard-panel-head {
@@ -759,6 +832,18 @@ a {
   display: block;
 }
 
+.landing-coaching-list {
+  margin: 16px 0 0;
+  padding-left: 18px;
+  color: #50596f;
+  display: grid;
+  gap: 8px;
+}
+
+.landing-coaching-list li {
+  line-height: 1.6;
+}
+
 .video-room-shell {
   display: grid;
   gap: 14px;
@@ -952,7 +1037,7 @@ a {
 
 @media (max-width: 768px) {
   .app-shell-wrap {
-    margin: 10px auto 88px;
+    margin: 10px auto 20px;
     padding: 0 10px;
   }
 
@@ -961,7 +1046,9 @@ a {
   }
 
   .brand-banner-hero .brand-banner-image {
-    min-height: 148px;
+    min-height: 0;
+    height: auto;
+    object-fit: contain;
   }
 
   .brand-banner-chip {
@@ -995,66 +1082,30 @@ a {
 
   .app-shell-header {
     margin-bottom: 10px;
+    padding: 12px !important;
   }
 
   .app-shell-top-nav {
-    display: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px !important;
+    order: -1;
+  }
+
+  .app-shell-nav-btn {
+    justify-content: center;
+    padding: 10px 8px !important;
+    font-size: 13px;
   }
 
   .app-shell-mobile-nav {
-    position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    z-index: 1300;
-    border: 1px solid #e6eaf4;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(8px);
-    border-radius: 16px;
-    box-shadow: 0 16px 30px rgba(29, 38, 66, 0.18);
-    padding: 6px;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .app-shell-mobile-btn {
-    border: 1px solid transparent;
-    background: #fff;
-    color: #3a4260;
-    border-radius: 12px;
-    padding: 10px 8px;
-    font-size: 13px;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-
-  .app-shell-mobile-btn.active {
-    color: #fff;
-    border-color: transparent;
-    background: linear-gradient(135deg, #e83f5b 0%, #ff6a63 100%);
-  }
-
-  .app-shell-mobile-badge {
-    min-width: 18px;
-    height: 18px;
-    border-radius: 999px;
-    background: #fff;
-    color: #e83f5b;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 800;
-    padding: 0 5px;
+    display: none !important;
   }
 
   .floating-chat-dock {
     right: 10px;
-    bottom: 82px;
+    bottom: 12px;
   }
 
   .people-hub-layout {
@@ -1142,7 +1193,8 @@ a {
   }
 
   .brand-banner-hero .brand-banner-image {
-    min-height: 150px;
+    min-height: 0;
+    height: auto;
   }
 
   .brand-banner-chip {
@@ -1152,12 +1204,27 @@ a {
     background: rgba(92, 18, 34, 0.72);
   }
 
+  .brand-banner-compact {
+    min-height: unset;
+  }
+
+  .brand-banner-compact .brand-banner-image {
+    min-height: 0;
+    height: auto;
+    object-fit: contain;
+  }
+
   .home-dashboard-hero,
+  .home-dashboard-feature-strip,
   .home-dashboard-grid {
     grid-template-columns: 1fr;
   }
 
   .home-dashboard-panel p {
+    min-height: 0;
+  }
+
+  .home-dashboard-feature-card p {
     min-height: 0;
   }
 

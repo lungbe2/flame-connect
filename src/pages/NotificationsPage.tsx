@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function NotificationsPage({ user, onBack, onNavigate }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     // Fetch recent matches
     const { data: matches } = await supabase
       .from('matches')
@@ -62,7 +58,11 @@ export default function NotificationsPage({ user, onBack, onNavigate }) {
     notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     setNotifications(notifs);
     setLoading(false);
-  };
+  }, [user.id]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const markAsRead = async (id) => {
     // Update local state

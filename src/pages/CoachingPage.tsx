@@ -2,6 +2,13 @@ import React, { useMemo, useState } from 'react';
 import SiteFooter from '../components/SiteFooter';
 import { VIEW_KEYS } from '../config/navigation';
 
+const GOAL_LABELS: Record<string, string> = {
+  'profile-review': 'Profile review',
+  'dating-tips': 'Dating tips',
+  'conversation-help': 'Conversation help',
+  'vip-guidance': 'VIP guidance'
+};
+
 type CoachingPageProps = {
   user?: any;
   profile?: any;
@@ -23,18 +30,11 @@ export default function CoachingPage({ user, profile, onBack, onNavigate }: Coac
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const goalLabels: Record<string, string> = {
-    'profile-review': 'Profile review',
-    'dating-tips': 'Dating tips',
-    'conversation-help': 'Conversation help',
-    'vip-guidance': 'VIP guidance'
-  };
-
   const mailtoHref = useMemo(() => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedMessage = message.trim();
-    const selectedGoal = goalLabels[goal] || 'Coaching request';
+    const selectedGoal = GOAL_LABELS[goal] || 'Coaching request';
 
     const subject = `Flame Connect Coaching Request - ${selectedGoal}`;
     const body = [

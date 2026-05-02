@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from './lib/supabase';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -92,7 +92,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentView, setCurrentView] = useState(VIEW_KEYS.LANDING);
   const [users, setUsers] = useState<any[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
@@ -105,6 +104,7 @@ function App() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoFaceStatus, setPhotoFaceStatus] = useState<'pending' | 'approved' | 'flagged'>('pending');
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   const [displayName, setDisplayName] = useState('');
   const [age, setAge] = useState('');
@@ -115,6 +115,7 @@ function App() {
   const [location, setLocation] = useState('');
   const [message, setMessage] = useState('');
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const currentUserId = user?.id || null;
 
   const myCoordinates = useMemo(() => {
     if (coords) {
@@ -126,17 +127,74 @@ function App() {
     return null;
   }, [coords, profile]);
 
+  const fetchUsers = useCallback(async (activeUserId: string) => {
+    const [profilesResult, likesResult, matchesResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', activeUserId)
+        .or('is_blocked.is.null,is_blocked.eq.false')
+        .order('last_seen', { ascending: false }),
+      supabase.from('likes').select('liked_id').eq('liker_id', activeUserId),
+      supabase.from('matches').select('user_a,user_b').or(`user_a.eq.${activeUserId},user_b.eq.${activeUserId}`)
+    ]);
+
+    const data = profilesResult.data;
+    const error = profilesResult.error;
+    if (!error && data) {
+      const likedIds = new Set((likesResult.data || []).map((row: any) => row.liked_id).filter(Boolean));
+      const matchedIds = new Set(
+        (matchesResult.data || [])
+          .map((row: any) => (row.user_a === activeUserId ? row.user_b : row.user_a))
+          .filter(Boolean)
+      );
+      const excludedIds = new Set<string>([...likedIds, ...matchedIds, activeUserId]);
+
+      const filteredProfiles = data.filter(
+        (entry) =>
+          !excludedIds.has(entry.id) &&
+          Array.isArray(entry.photos) &&
+          entry.photos.length > 0 &&
+          entry.photo_face_status === 'approved'
+      );
+      const withPresenceAndDistance = filteredProfiles.map((entry) => {
+        const distance =
+          myCoordinates && entry.latitude && entry.longitude
+            ? calculateDistanceKm(myCoordinates.lat, myCoordinates.lng, entry.latitude, entry.longitude)
+            : null;
+        const profileCompletionScore = calculateProfileCompletionScore(entry);
+        return {
+          ...entry,
+          is_online: isRecentlyOnline(entry),
+          distance_km: distance,
+          profile_completion_score: profileCompletionScore
+        };
+      });
+      const ranked = withPresenceAndDistance
+        .map((entry) => ({
+          ...entry,
+          discovery_score: computeDiscoveryScore(profile, entry, entry.distance_km)
+        }))
+        .sort((a, b) => b.discovery_score - a.discovery_score);
+
+      setUsers(ranked);
+      return;
+    }
+    setUsers([]);
+  }, [myCoordinates, profile]);
+
   useEffect(() => {
     checkUser();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!currentUserId) {
       return;
     }
 
     const setPresence = async (isOnline: boolean) => {
-      await supabase.from('profiles').update({ is_online: isOnline, last_seen: new Date().toISOString() }).eq('id', user.id);
+      await supabase.from('profiles').update({ is_online: isOnline, last_seen: new Date().toISOString() }).eq('id', currentUserId);
     };
 
     setPresence(true);
@@ -155,27 +213,27 @@ function App() {
       window.removeEventListener('beforeunload', onUnload);
       void setPresence(false);
     };
-  }, [user?.id]);
+  }, [currentUserId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!currentUserId) {
       return;
     }
 
-    fetchUsers(user.id);
-    fetchMatches(user.id);
-    fetchLikedProfiles(user.id);
-    fetchChatRequests(user.id);
-    fetchUnreadCounts(user.id);
+    fetchUsers(currentUserId);
+    fetchMatches(currentUserId);
+    fetchLikedProfiles(currentUserId);
+    fetchChatRequests(currentUserId);
+    fetchUnreadCounts(currentUserId);
     const timer = setInterval(() => {
-      fetchUsers(user.id);
-      fetchMatches(user.id);
-      fetchLikedProfiles(user.id);
-      fetchChatRequests(user.id);
-      fetchUnreadCounts(user.id);
+      fetchUsers(currentUserId);
+      fetchMatches(currentUserId);
+      fetchLikedProfiles(currentUserId);
+      fetchChatRequests(currentUserId);
+      fetchUnreadCounts(currentUserId);
     }, 20000);
     return () => clearInterval(timer);
-  }, [user?.id, myCoordinates?.lat, myCoordinates?.lng]);
+  }, [currentUserId, fetchUsers, myCoordinates?.lat, myCoordinates?.lng]);
 
   const checkUser = async () => {
     const { data } = await supabase.auth.getSession();
@@ -226,7 +284,6 @@ function App() {
             setCoords({ lat: profileData.latitude, lng: profileData.longitude });
           }
         }
-        setShowOnboarding(true);
         setCurrentView(VIEW_KEYS.ONBOARDING);
       }
     }
@@ -396,62 +453,6 @@ function App() {
     setLikedProfiles(rows as any[]);
   };
 
-  const fetchUsers = async (currentUserId: string) => {
-    const [profilesResult, likesResult, matchesResult] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('*')
-        .neq('id', currentUserId)
-        .or('is_blocked.is.null,is_blocked.eq.false')
-        .order('last_seen', { ascending: false }),
-      supabase.from('likes').select('liked_id').eq('liker_id', currentUserId),
-      supabase.from('matches').select('user_a,user_b').or(`user_a.eq.${currentUserId},user_b.eq.${currentUserId}`)
-    ]);
-
-    const data = profilesResult.data;
-    const error = profilesResult.error;
-    if (!error && data) {
-      const likedIds = new Set((likesResult.data || []).map((row: any) => row.liked_id).filter(Boolean));
-      const matchedIds = new Set(
-        (matchesResult.data || [])
-          .map((row: any) => (row.user_a === currentUserId ? row.user_b : row.user_a))
-          .filter(Boolean)
-      );
-      const excludedIds = new Set<string>([...likedIds, ...matchedIds, currentUserId]);
-
-      const filteredProfiles = data.filter(
-        (entry) =>
-          !excludedIds.has(entry.id) &&
-          Array.isArray(entry.photos) &&
-          entry.photos.length > 0 &&
-          entry.photo_face_status === 'approved'
-      );
-      const withPresenceAndDistance = filteredProfiles.map((entry) => {
-        const distance =
-          myCoordinates && entry.latitude && entry.longitude
-            ? calculateDistanceKm(myCoordinates.lat, myCoordinates.lng, entry.latitude, entry.longitude)
-            : null;
-        const profileCompletionScore = calculateProfileCompletionScore(entry);
-        return {
-          ...entry,
-          is_online: isRecentlyOnline(entry),
-          distance_km: distance,
-          profile_completion_score: profileCompletionScore
-        };
-      });
-      const ranked = withPresenceAndDistance
-        .map((entry) => ({
-          ...entry,
-          discovery_score: computeDiscoveryScore(profile, entry, entry.distance_km)
-        }))
-        .sort((a, b) => b.discovery_score - a.discovery_score);
-
-      setUsers(ranked);
-      return;
-    }
-    setUsers([]);
-  };
-
   const handleLike = async (likedUserId: string) => {
     if (!user) {
       return;
@@ -583,6 +584,7 @@ function App() {
     }
 
     setUploading(true);
+    setUploadStatus('uploading');
     setMessage('');
 
     try {
@@ -602,6 +604,20 @@ function App() {
             photo_face_review_note: 'No detectable face found in uploaded profile photo.'
           })
           .eq('id', user.id);
+        setProfile((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                photos: [],
+                photo_face_status: 'flagged',
+                photo_face_count: 0,
+                photo_face_confidence: null,
+                photo_face_checked_at: new Date().toISOString(),
+                photo_face_review_note: 'No detectable face found in uploaded profile photo.'
+              }
+            : prev
+        );
+        setUploadStatus('error');
         setMessage('Upload a clear face photo. Photos without a detectable face are not allowed.');
         return;
       }
@@ -611,6 +627,7 @@ function App() {
       const { error } = await supabase.storage.from('profile-photos').upload(fileName, file, { upsert: true });
 
       if (error) {
+        setUploadStatus('error');
         setMessage(`Photo upload failed: ${error.message}`);
         return;
       }
@@ -635,8 +652,23 @@ function App() {
         })
         .eq('id', user.id);
 
+      setProfile((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              photos: nextPhotos,
+              photo_face_status: 'approved',
+              photo_face_count: validation.faceCount,
+              photo_face_confidence: validation.confidence,
+              photo_face_checked_at: new Date().toISOString(),
+              photo_face_review_note: 'Automatic face detection passed.'
+            }
+          : prev
+      );
+      setUploadStatus('success');
       setMessage('Photo uploaded and face check passed.');
     } catch (error: any) {
+      setUploadStatus('error');
       setMessage(error?.message || 'Photo validation failed. Please try a different image.');
     } finally {
       setUploading(false);
@@ -714,7 +746,6 @@ function App() {
     const { error } = await supabase.from('profiles').update(payload).eq('id', user.id);
 
     if (!error) {
-      setShowOnboarding(false);
       await checkUser();
     }
   };
@@ -849,8 +880,6 @@ function App() {
           navActions={mainNav(VIEW_KEYS.HOME)}
           subtitle="Your dating dashboard"
           onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
-          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
-          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
           <HomeDashboard
             profile={profile}
@@ -870,8 +899,6 @@ function App() {
           navActions={mainNav(VIEW_KEYS.PEOPLE)}
           subtitle="Discover singles curated for your preferences"
           onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
-          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
-          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
           <PeopleHub users={users} matches={matches} chatRequests={chatRequests} onOpenChat={openDirectChat} onLike={handleLike} onSelectProfile={() => {}} />
         </AppShell>
@@ -884,8 +911,6 @@ function App() {
           subtitle="Reply quickly and keep your matches warm"
           hideMobileNav={!!selectedMatch || !!selectedVideoRoom}
           onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
-          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
-          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
           <section style={{ marginBottom: '14px', background: '#fff', border: '1px solid #e8ebf3', borderRadius: '16px', padding: '14px 16px' }}>
             <h2 style={{ margin: '0 0 4px', fontSize: '22px', color: '#1f2230' }}>Your Conversations</h2>
@@ -931,11 +956,9 @@ function App() {
           maxWidth="620px"
           subtitle="Manage your profile and matching preferences"
           onBrandClick={() => setCurrentView(VIEW_KEYS.HOME)}
-          onTermsClick={() => setCurrentView(VIEW_KEYS.TERMS)}
-          onPrivacyClick={() => setCurrentView(VIEW_KEYS.PRIVACY)}
         >
           <Profile
-            profile={profile}
+            profile={{ ...(profile || {}), upload_message: message, upload_status: uploadStatus }}
             user={user}
             photos={photos}
             onEditProfile={() => setCurrentView(VIEW_KEYS.ONBOARDING)}

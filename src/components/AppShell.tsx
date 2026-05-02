@@ -15,13 +15,22 @@ type AppShellProps = {
   subtitle?: string;
   hideMobileNav?: boolean;
   onBrandClick?: () => void;
-  onTermsClick?: () => void;
-  onPrivacyClick?: () => void;
 };
 
-export default function AppShell({ children, navActions, maxWidth = '1200px', subtitle, hideMobileNav = false, onBrandClick, onTermsClick, onPrivacyClick }: AppShellProps) {
+export default function AppShell({ children, navActions, maxWidth = '1200px', subtitle, hideMobileNav = false, onBrandClick }: AppShellProps) {
   return (
     <div className="app-shell-wrap" style={{ maxWidth }}>
+      <div className="brand-banner brand-banner-compact app-shell-banner">
+        <img className="brand-banner-image" src="/brand/flame-banner-clean.png" alt="Flame Connect banner" />
+        <div className="brand-banner-overlay" />
+        <div className="brand-banner-chip">
+          <img className="brand-banner-chip-logo" src="/favicon.svg" alt="Flame Connect" />
+          <div>
+            <div className="brand-banner-chip-title">Flame Connect</div>
+            <div className="brand-banner-chip-copy">Meet real singles. Match by vibe. Start better conversations.</div>
+          </div>
+        </div>
+      </div>
       <div
         className="app-shell-header"
         style={{
@@ -76,7 +85,7 @@ export default function AppShell({ children, navActions, maxWidth = '1200px', su
       </div>
       {children}
       {!hideMobileNav && (
-        <nav className="app-shell-mobile-nav">
+        <nav className="app-shell-mobile-nav" aria-hidden="true">
           {navActions.map((action) => (
             <button key={`mobile-${action.key}`} type="button" onClick={action.onClick} className={`app-shell-mobile-btn ${action.active ? 'active' : ''}`}>
               <span>{action.label}</span>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 function SendIcon() {
@@ -24,21 +24,7 @@ export default function ChatPage({ match, currentUser, onBack, onStartVideoCall 
   const subscriptionRef = useRef<any>(null);
   const contactInfoPattern = /(whatsapp|telegram|snapchat|instagram|@|\b\d{7,}\b|gmail\.com|yahoo\.com|outlook\.com)/i;
 
-  useEffect(() => {
-    fetchMessages();
-    subscribeToMessages();
-    return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
-      }
-    };
-  }, [match?.match_id]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!match?.match_id) {
       return;
     }
@@ -53,9 +39,9 @@ export default function ChatPage({ match, currentUser, onBack, onStartVideoCall 
         await supabase.from('messages').update({ is_read: true, read_at: new Date().toISOString() }).in('id', unreadFromOther);
       }
     }
-  };
+  }, [currentUser.id, match?.match_id]);
 
-  const subscribeToMessages = () => {
+  const subscribeToMessages = useCallback(() => {
     if (!match?.match_id) {
       return;
     }
@@ -78,7 +64,21 @@ export default function ChatPage({ match, currentUser, onBack, onStartVideoCall 
         }
       )
       .subscribe();
-  };
+  }, [currentUser.id, match?.match_id]);
+
+  useEffect(() => {
+    fetchMessages();
+    subscribeToMessages();
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
+    };
+  }, [fetchMessages, subscribeToMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const reportUser = async () => {
     const reason = window.prompt('Report reason (required):', 'Suspicious behavior');

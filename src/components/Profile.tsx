@@ -6,6 +6,9 @@ export default function Profile({ profile, user, photos, onEditProfile, onLogout
   const age = profile?.age || '--';
   const gender = profile?.gender || 'Not set';
   const lookingFor = profile?.looking_for || 'Not set';
+  const uploadMessage = profile?.upload_message || '';
+  const uploadStatus = profile?.upload_status || 'idle';
+  const isUploading = uploadStatus === 'uploading';
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e8ebf3', borderRadius: '18px', padding: '24px', textAlign: 'center' }}>
@@ -18,9 +21,26 @@ export default function Profile({ profile, user, photos, onEditProfile, onLogout
       )}
 
       <input type="file" accept="image/*" onChange={onPhotoChange} style={{ display: 'none' }} id="profile-photo" />
-      <label htmlFor="profile-photo" style={{ display: 'inline-block', color: '#e83f5b', cursor: 'pointer', marginBottom: '16px', fontWeight: 600 }}>
-        Change photo
+      <label htmlFor="profile-photo" style={{ display: 'inline-block', color: isUploading ? '#9aa1b6' : '#e83f5b', cursor: isUploading ? 'not-allowed' : 'pointer', marginBottom: '10px', fontWeight: 600 }}>
+        {isUploading ? 'Uploading photo...' : 'Change photo'}
       </label>
+      {uploadMessage && (
+        <div
+          style={{
+            margin: '0 auto 16px',
+            maxWidth: '420px',
+            padding: '10px 12px',
+            borderRadius: '12px',
+            background: uploadStatus === 'error' ? '#fff4f6' : uploadStatus === 'success' ? '#eefbf2' : '#f5f7fc',
+            color: uploadStatus === 'error' ? '#d93e5b' : uploadStatus === 'success' ? '#1d7a47' : '#5f677c',
+            border: `1px solid ${uploadStatus === 'error' ? '#ffd5dc' : uploadStatus === 'success' ? '#cdeed8' : '#e7ebf3'}`,
+            fontSize: '13px',
+            lineHeight: 1.5
+          }}
+        >
+          {uploadMessage}
+        </div>
+      )}
 
       <h2 style={{ margin: '0 0 8px' }}>{profileName}</h2>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#656d84' }}>

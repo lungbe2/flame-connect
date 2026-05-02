@@ -21,7 +21,12 @@
     <meta name="twitter:title" content="Flame Connect | Real Chats, Video Calls, Better Matches" />
     <meta name="twitter:description" content="Meet real singles, match by vibe, start private video calls, and request dating tips from qualified coaches." />
     <meta name="twitter:image" content="https://flameconnect.co.za/brand/flame-banner-clean.png" />
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js" defer></script>
+    <script type="module">
+      import vision from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest';
+      window.vision = vision;
+      window.FaceDetector = vision.FaceDetector;
+      window.FilesetResolver = vision.FilesetResolver;
+    </script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function ExplorePage({ user, onBack, onSelectProfile }) {
@@ -14,15 +14,7 @@ export default function ExplorePage({ user, onBack, onSelectProfile }) {
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [filters, users]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -33,9 +25,9 @@ export default function ExplorePage({ user, onBack, onSelectProfile }) {
       setFilteredUsers(data);
     }
     setLoading(false);
-  };
+  }, [user.id]);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...users];
     
     // Age filter
@@ -52,7 +44,15 @@ export default function ExplorePage({ user, onBack, onSelectProfile }) {
     }
     
     setFilteredUsers(filtered);
-  };
+  }, [filters, users]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
