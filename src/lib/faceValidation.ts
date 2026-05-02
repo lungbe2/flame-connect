@@ -18,8 +18,27 @@ declare global {
 }
 
 let detectorPromise: Promise<any> | null = null;
+let visionLoaderPromise: Promise<void> | null = null;
 
-const resolveVisionApi = () => {
+const ensureVisionApi = async () => {
+  if (window.vision || (window.FaceDetector && window.FilesetResolver)) {
+    return;
+  }
+
+  if (!visionLoaderPromise) {
+    visionLoaderPromise = (async () => {
+      const vision = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest');
+      window.vision = vision;
+      window.FaceDetector = vision.FaceDetector;
+      window.FilesetResolver = vision.FilesetResolver;
+    })();
+  }
+
+  await visionLoaderPromise;
+};
+
+const resolveVisionApi = async () => {
+  await ensureVisionApi();
   const source = window.vision || window;
   const FilesetResolver = source.FilesetResolver;
   const FaceDetector = source.FaceDetector;
@@ -34,7 +53,7 @@ const resolveVisionApi = () => {
 const loadFaceDetector = async () => {
   if (!detectorPromise) {
     detectorPromise = (async () => {
-      const { FilesetResolver, FaceDetector } = resolveVisionApi();
+      const { FilesetResolver, FaceDetector } = await resolveVisionApi();
       const resolver = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm');
 
       return FaceDetector.createFromOptions(resolver, {
